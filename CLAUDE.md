@@ -1,16 +1,21 @@
-# pipdance - Claude Code Instructions
+# pipdance
 
-## Project Overview
-Piper AgileX robo arm dancer controlled via Raspberry Pi.
+Piper AgileX robo arm dancer via Raspberry Pi.
 
-## Raspberry Pi Details
-See [README.md](./README.md) for full connection details.
+## Quick Reference
 
-Quick reference:
-- **Hostname**: `raspi`
-- **User/Pass**: `pi3` / `pi3`
-- **SSH**: `ssh pi3@raspi.local`
+```bash
+ssh pi3@192.168.2.3   # password: pi3
+```
 
-## Development Notes
-- Pi connects via ethernet (Mac Internet Sharing) or WiFi (`MikePhone`)
-- SSH and Raspberry Pi Connect are enabled
+- **Hardware:** Mac → MOKiN USB-C hub → Pi (ethernet + microUSB)
+- **Pi IP:** `192.168.2.3` (via Mac Internet Sharing)
+- **WiFi backup:** `MikePhone` / `HardPassword`
+- **Web access:** [Raspberry Pi Connect](https://connect.raspberrypi.com/)
+
+## macOS Sequoia Fix
+
+"No route to host" but traceroute works? Enable terminal in:
+**System Settings → Privacy & Security → Local Network**
+
+Full setup: [README.md](./README.md)
