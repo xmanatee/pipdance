@@ -1,5 +1,9 @@
 # pipdance
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
 Piper AgileX 6-DOF robotic arm controller via Raspberry Pi.
 
 ## Quick Reference
@@ -19,15 +23,16 @@ python test.py
 
 ```
 Mac ──ethernet──► Raspberry Pi ──USB──► USB-to-CAN ──► Piper Arm
-     (Internet       (runs Python       (standard or    (6-DOF,
-      Sharing)        control code)      Waveshare)      24V power)
+     (editing &      (runs Python       (standard or    (6-DOF,
+      SSH only)       control code)      Waveshare)      24V power)
 ```
+
+**Adapter pattern:** `PiperArmBase` (abstract) → `StandardPiperArm` (socketcan) or `WavesharePiperArm` (serial). Auto-detection prefers standard socketcan.
 
 ## Key Details
 
 | Item | Value |
 |------|-------|
-| Pi hostname | `raspi` |
 | Pi credentials | `pi3` / `pi3` |
 | Pi IP | `192.168.2.3` |
 | CAN interface | `can0` (standard) or `/dev/ttyUSB*` (Waveshare) |
@@ -38,29 +43,9 @@ Mac ──ethernet──► Raspberry Pi ──USB──► USB-to-CAN ──►
 
 "No route to host" → Enable terminal in Privacy & Security → Local Network
 
-## File Structure
+## Commands
 
-```
-pipdance/
-├── src/piper/                 # Main package
-│   ├── __init__.py           # PiperArm, create_arm, auto-detection
-│   ├── base.py               # ArmState, PiperArmBase, deg2rad/rad2deg
-│   ├── adapters/
-│   │   ├── standard.py       # Uses piper_control (socketcan)
-│   │   └── waveshare.py      # Custom CAN protocol
-│   └── can/
-│       └── waveshare_bus.py  # python-can interface for Waveshare
-├── setup/
-│   ├── setup_pi.sh           # One-time Pi setup
-│   ├── can_setup.sh          # CAN activation (run each boot)
-│   └── test.py               # Unified test script
-└── examples/
-    └── demo.py               # Demo with auto-detection
-```
-
-## Common Tasks
-
-### Deploy code to Pi
+### Deploy to Pi (from Mac)
 ```bash
 scp -r src/ setup/ examples/ pi3@192.168.2.3:~/pipdance/
 ```
@@ -70,38 +55,30 @@ scp -r src/ setup/ examples/ pi3@192.168.2.3:~/pipdance/
 ssh pi3@192.168.2.3
 source ~/piper-venv/bin/activate
 cd ~/pipdance
+
+# Tests
+python setup/test.py --test detect   # Adapter detection only
+python setup/test.py --test connect  # Connection + state read
+python setup/test.py --test move     # Small movement test
+python setup/test.py --test all      # All tests
+
+# Demo
 python examples/demo.py
 ```
 
-### Test adapter detection
+### CAN setup (standard adapter, each boot)
 ```bash
-python setup/test.py --test detect
+./setup/can_setup.sh
+candump can0                   # Verify frames (arm must be powered)
 ```
 
-### CAN troubleshooting
-```bash
-./setup/can_setup.sh         # Activate CAN (standard adapter)
-candump can0                  # See raw frames (arm must be on)
-ip -details link show can0    # Check interface status
-```
+## Troubleshooting
 
-## SDK Usage
+| Symptom | Fix |
+|---------|-----|
+| "No route to host" (macOS Sequoia) | Privacy & Security → Local Network → enable terminal |
+| `can0` not found | Run `./can_setup.sh` or replug adapter |
+| No CAN frames | Check wiring, ensure arm is powered |
+| Import errors | Activate venv: `source ~/piper-venv/bin/activate` |
 
-```python
-from piper import PiperArm
-
-with PiperArm() as arm:  # auto-detects adapter
-    arm.print_state()
-    arm.move_joint_by(1, 20)  # Joint 2, +20°
-    arm.close_gripper()
-
-# Or specify adapter explicitly
-from piper import create_arm
-
-arm = create_arm("waveshare")  # or "standard"
-arm.connect()
-arm.print_state()
-arm.disconnect()
-```
-
-See [README.md](./README.md) for full documentation.
+See [README.md](./README.md) for hardware details and full API reference.
