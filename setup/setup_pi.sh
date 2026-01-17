@@ -25,7 +25,7 @@ fi
 echo "[4/4] Installing Python packages..."
 source "$HOME/piper-venv/bin/activate"
 pip install --upgrade pip
-pip install "python-can>=3.3.4" piper_sdk piper_control
+pip install "python-can>=3.3.4" pyserial piper_sdk piper_control
 echo "      Done"
 
 echo ""

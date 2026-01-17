@@ -9,7 +9,7 @@ Piper AgileX 6-DOF robotic arm controller via Raspberry Pi.
 |-----------|---------|
 | Raspberry Pi | Pi 3 or better (Pi 4 recommended for high-rate control) |
 | Piper Arm | AgileX PiPER 6-DOF robotic arm |
-| USB-to-CAN | Included with Piper arm |
+| USB-to-CAN | Standard (gs_usb) or Waveshare USB-CAN-A |
 | Power | 24V adapter (included) for arm, microUSB for Pi |
 
 ### Wiring
@@ -37,8 +37,8 @@ Mac ──ethernet──► Raspberry Pi ──USB──► USB-to-CAN ──CAN
 
 ### 1. Setup Pi (one-time)
 ```bash
-# On Mac, copy setup files to Pi
-scp -r setup/ pi3@192.168.2.3:~/pipdance/
+# On Mac, copy files to Pi
+scp -r src/ setup/ examples/ pi3@192.168.2.3:~/pipdance/
 
 # On Pi, run setup
 ssh pi3@192.168.2.3
@@ -47,7 +47,7 @@ chmod +x *.sh
 ./setup_pi.sh
 ```
 
-### 2. Activate CAN (each boot)
+### 2. Activate CAN (each boot, standard adapter only)
 ```bash
 ./can_setup.sh
 ```
@@ -55,8 +55,59 @@ chmod +x *.sh
 ### 3. Test connection
 ```bash
 source ~/piper-venv/bin/activate
-python test_can.py      # Test CAN bus
-python test_arm.py      # Test arm control (arm must be powered)
+cd ~/pipdance
+python setup/test.py --test detect   # Test adapter detection
+python setup/test.py --test connect  # Test arm connection
+python setup/test.py --test move     # Test arm movement
+```
+
+## Usage
+
+```python
+from piper import PiperArm
+
+with PiperArm() as arm:  # auto-detects adapter
+    arm.print_state()
+    arm.move_joint_by(1, 20)  # Move joint 2 by +20°
+    arm.close_gripper()
+```
+
+### Specify Adapter Explicitly
+
+```python
+from piper import create_arm
+
+# Standard socketcan adapter (can0/slcan0)
+arm = create_arm("standard")
+
+# Waveshare USB-CAN-A adapter
+arm = create_arm("waveshare")
+
+# Auto-detect (default)
+arm = create_arm("auto")
+```
+
+### API Reference
+
+```python
+# Connection
+arm.connect()
+arm.disconnect()
+
+# State
+arm.state               # ArmState(joints=[...], gripper=0.5)
+arm.print_state()       # Print formatted state
+
+# Joint control (6 joints, 0-indexed)
+arm.move_joints([0.0, 0.1, ...], wait=2.0)  # Move all joints (radians)
+arm.move_joint(1, 45.0, wait=2.0)           # Move joint 2 to 45° (degrees)
+arm.move_joint_by(1, 10.0, wait=2.0)        # Move joint 2 by +10° (degrees)
+arm.home(wait=3.0)                          # All joints to zero
+
+# Gripper
+arm.gripper(0.5, wait=1.0)  # Set position (0=open, 1=closed)
+arm.open_gripper()
+arm.close_gripper()
 ```
 
 ## Mac Setup (Ethernet via Internet Sharing)
@@ -69,25 +120,18 @@ python test_arm.py      # Test arm control (arm must be powered)
 2. Allow `dhcp6d` firewall prompt
 3. **macOS Sequoia:** Privacy & Security → Local Network → Enable terminal app
 
-## SDK Options
-
-| Package | Level | Install | Use Case |
-|---------|-------|---------|----------|
-| `piper_sdk` | Low | `pip install piper_sdk` | Direct CAN control, full access |
-| `piper_control` | High | `pip install piper_control` | Simpler API, recommended |
-| `piper-kit` | High | `pip install piper-kit` | CLI tools + Python API |
-
 ## CAN Configuration
 
 - **Bitrate:** 1,000,000 (fixed, cannot change)
-- **Interface:** `can0` (default)
-- **Activation:** `sudo ip link set can0 up type can bitrate 1000000`
 
-### Verify CAN
-```bash
-ip -details link show can0   # Check interface
-candump can0                  # See raw CAN frames (arm must be on)
-```
+### Adapter Types
+
+| Adapter | Interface | Detection |
+|---------|-----------|-----------|
+| **Standard (gs_usb)** | `can0` or `slcan0` | Auto-detected first |
+| **Waveshare USB-CAN-A** | `/dev/ttyUSB*` | Auto-detected second |
+
+The `PiperArm()` function auto-detects the adapter type. Standard socketcan is preferred when available.
 
 ## Troubleshooting
 
@@ -98,20 +142,30 @@ candump can0                  # See raw CAN frames (arm must be on)
 | No CAN frames | Verify CAN_H/CAN_L connections, arm powered |
 | Import errors | Activate venv: `source ~/piper-venv/bin/activate` |
 | Pi unreachable | Check Mac Internet Sharing, Local Network permission |
+| Waveshare: no ttyUSB | Replug adapter, check `dmesg \| tail` |
+| Waveshare: no frames | Ensure arm power on, verify wiring |
+| No adapter detected | Both socketcan and Waveshare unavailable |
 
 ## File Structure
 
 ```
 pipdance/
-├── README.md           # This file
-├── CLAUDE.md           # AI assistant context
+├── README.md                   # This file
+├── CLAUDE.md                   # AI assistant context
+├── src/piper/                  # Main package
+│   ├── __init__.py            # PiperArm, create_arm, auto-detection
+│   ├── base.py                # ArmState, PiperArmBase, deg2rad/rad2deg
+│   ├── adapters/
+│   │   ├── standard.py        # Uses piper_control (socketcan)
+│   │   └── waveshare.py       # Custom CAN protocol
+│   └── can/
+│       └── waveshare_bus.py   # python-can interface for Waveshare
 ├── setup/
-│   ├── setup_pi.sh     # One-time Pi setup
-│   ├── can_setup.sh    # CAN activation (run each boot)
-│   ├── test_can.py     # Test CAN connection
-│   └── test_arm.py     # Test arm control
-└── src/
-    └── piper_app.py    # Sample application
+│   ├── setup_pi.sh            # One-time Pi setup
+│   ├── can_setup.sh           # CAN activation (run each boot)
+│   └── test.py                # Unified test script
+└── examples/
+    └── demo.py                # Demo with auto-detection
 ```
 
 ## Resources
