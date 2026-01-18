@@ -1,5 +1,6 @@
 - connect to robot
 - fix on robot
-- mouth moving
-- fix choreo
 - custume
+- fix choreo
+- mouth moving
+- choreo generation
