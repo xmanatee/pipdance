@@ -118,7 +118,7 @@ def configure_motors(entity: "gs.Entity") -> None:
     )
 
     num_dofs = len(entity.get_dofs_position())
-    if num_dofs > 6:
+    if num_dofs > 7:  # Need both gripper joints (6 and 7)
         gripper_joints = [6, 7]
         entity.set_dofs_kp(
             kp=torch.tensor([500, 500]),

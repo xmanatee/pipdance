@@ -17,6 +17,9 @@ class SimulationStepper:
 
     Unlike a background thread approach, this stepper runs in the main thread
     because Genesis viewer can only be updated from the thread that created it.
+
+    Handles the mismatch between physics dt and display rate by stepping
+    multiple times per frame to maintain real-time correspondence.
     """
 
     def __init__(
@@ -30,11 +33,22 @@ class SimulationStepper:
         self._target_fps = target_fps
         self._frame_time = 1.0 / target_fps
 
-        self._target_joints = [0.0] * 6
-        self._target_gripper = 0.0
+        # Get physics timestep from scene
+        self._physics_dt = float(scene.dt)
+
+        # Calculate how many physics steps per display frame for real-time
+        # If dt=1/240 and target_fps=60, need 4 steps per frame
+        self._steps_per_frame = max(1, int(round(self._frame_time / self._physics_dt)))
 
         self._arm_joints = [0, 1, 2, 3, 4, 5]
         self._gripper_joints = [6, 7]
+
+        # Cache whether gripper exists (check once at init)
+        num_dofs = len(entity.get_dofs_position())
+        self._has_gripper = num_dofs > max(self._gripper_joints)
+
+        self._target_joints = [0.0] * 6
+        self._target_gripper = 0.0
 
     def start(self) -> None:
         """No-op for compatibility (main-thread stepping)."""
@@ -72,28 +86,51 @@ class SimulationStepper:
 
     def get_current_gripper(self) -> float:
         """Get current gripper position (mapped to 0-1)."""
+        if not self._has_gripper:
+            return 0.0
+
         import torch
 
         pos = self._entity.get_dofs_position()
         if isinstance(pos, torch.Tensor):
             pos = pos.cpu().numpy()
 
-        if len(pos) > max(self._gripper_joints):
-            g1 = float(pos[self._gripper_joints[0]])
-            g2 = float(pos[self._gripper_joints[1]])
-            avg = (g1 + g2) / 2.0
-            return min(1.0, max(0.0, avg / 0.04))
-        return 0.0
+        g1 = float(pos[self._gripper_joints[0]])
+        g2 = float(pos[self._gripper_joints[1]])
+        avg = (g1 + g2) / 2.0
+        return min(1.0, max(0.0, avg / 0.04))
+
+    def _apply_controls(self) -> None:
+        """Apply current joint and gripper targets to the entity."""
+        import torch
+
+        targets = torch.tensor(self._target_joints, dtype=torch.float32)
+        self._entity.control_dofs_position(targets, dofs_idx_local=self._arm_joints)
+
+        if self._has_gripper:
+            gripper_pos = self._target_gripper * 0.04
+            gripper_targets = torch.tensor(
+                [gripper_pos, gripper_pos], dtype=torch.float32
+            )
+            self._entity.control_dofs_position(
+                gripper_targets, dofs_idx_local=self._gripper_joints
+            )
+
+    def _step_physics(self) -> None:
+        """Step physics simulation for one display frame."""
+        for _ in range(self._steps_per_frame):
+            self._scene.step()
 
     def step_for_duration(self, duration: float) -> None:
         """
         Step the simulation for the given duration in real-time.
 
+        Steps multiple physics substeps per display frame to maintain
+        correspondence between wall-clock time and simulation time.
+
         Args:
             duration: Time in seconds to simulate
         """
-        import torch
-
         if duration <= 0:
             return
 
@@ -103,19 +140,8 @@ class SimulationStepper:
         while time.perf_counter() < end:
             frame_start = time.perf_counter()
 
-            targets = torch.tensor(self._target_joints, dtype=torch.float32)
-            self._entity.control_dofs_position(targets, dofs_idx_local=self._arm_joints)
-
-            if len(self._entity.get_dofs_position()) > max(self._gripper_joints):
-                gripper_pos = self._target_gripper * 0.04
-                gripper_targets = torch.tensor(
-                    [gripper_pos, gripper_pos], dtype=torch.float32
-                )
-                self._entity.control_dofs_position(
-                    gripper_targets, dofs_idx_local=self._gripper_joints
-                )
-
-            self._scene.step()
+            self._apply_controls()
+            self._step_physics()
 
             elapsed = time.perf_counter() - frame_start
             sleep_time = self._frame_time - elapsed
@@ -123,19 +149,6 @@ class SimulationStepper:
                 time.sleep(sleep_time)
 
     def step_once(self) -> None:
-        """Step the simulation once, applying current targets."""
-        import torch
-
-        targets = torch.tensor(self._target_joints, dtype=torch.float32)
-        self._entity.control_dofs_position(targets, dofs_idx_local=self._arm_joints)
-
-        if len(self._entity.get_dofs_position()) > max(self._gripper_joints):
-            gripper_pos = self._target_gripper * 0.04
-            gripper_targets = torch.tensor(
-                [gripper_pos, gripper_pos], dtype=torch.float32
-            )
-            self._entity.control_dofs_position(
-                gripper_targets, dofs_idx_local=self._gripper_joints
-            )
-
-        self._scene.step()
+        """Step the simulation for one display frame worth of physics."""
+        self._apply_controls()
+        self._step_physics()

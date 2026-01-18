@@ -68,7 +68,10 @@ class SimulationPiperArm(PiperArmBase):
 
         urdf_name = (self._urdf_path or DEFAULT_URDF).name
         viewer_status = "with viewer" if self._show_viewer else "headless"
+        dt_ms = self._stepper._physics_dt * 1000
+        steps = self._stepper._steps_per_frame
         self._log(f"Simulation ready ({urdf_name}, {viewer_status})")
+        self._log(f"Physics: dt={dt_ms:.2f}ms, {steps} steps/frame for real-time")
 
     def _disconnect(self) -> None:
         if self._stepper:
