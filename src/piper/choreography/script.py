@@ -24,8 +24,8 @@ JOINT_MAX_SPEED_DEG = {
     "J6": 225.0,
 }
 
-# Pattern for simplified schedule: "MM:SS - pose_name"
-CHECKPOINT_RE = re.compile(r"(\d{1,2}):(\d{2})\s*[-–]\s*(\w+)")
+# Pattern for simplified schedule: "MM:SS.mmm - pose_name"
+CHECKPOINT_RE = re.compile(r"(\d{1,2}):(\d{2})\.(\d{3})\s*[-–]\s*(\w+)")
 
 
 @dataclass
@@ -79,11 +79,12 @@ def parse_schedule(path: Path) -> List[Checkpoint]:
     Parse a simplified schedule markdown file.
 
     Format (one checkpoint per line):
-        00:00 - stand
-        00:06 - left_down
-        00:10 - look_left
+        00:00.000 - stand
+        00:06.500 - left_down
+        00:10.250 - look_left
 
     Each line specifies when the arm should ARRIVE at that pose.
+    Milliseconds are mandatory (exactly 3 digits).
     """
     checkpoints: List[Checkpoint] = []
 
@@ -96,8 +97,9 @@ def parse_schedule(path: Path) -> List[Checkpoint]:
         if match:
             minutes = int(match.group(1))
             seconds = int(match.group(2))
-            pose_name = match.group(3)
-            time_s = minutes * 60 + seconds
+            ms = int(match.group(3))
+            pose_name = match.group(4)
+            time_s = minutes * 60 + seconds + ms / 1000.0
             checkpoints.append(Checkpoint(time_s=time_s, pose_name=pose_name))
 
     return checkpoints

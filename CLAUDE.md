@@ -108,11 +108,12 @@ The `piper.choreography` module enables timed pose sequences using the adapter p
 **Schedule Markdown** (`scripts/he.md`):
 ```markdown
 # Comments start with #
-00:00 - stand
-00:06 - left_down
-01:42 - kiss
+00:00.000 - stand
+00:06.500 - left_down
+01:42.250 - kiss
 ```
 Each line specifies when the arm should **arrive** at that pose.
+Timestamps use `MM:SS.mmm` format (milliseconds are mandatory, exactly 3 digits).
 
 ### Python API
 ```python

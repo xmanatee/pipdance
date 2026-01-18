@@ -144,8 +144,10 @@ def run_single(args, poses_path: Path, verbose: bool):
     if args.dry_run:
         print("\n[Dry Run] Schedule:")
         for cp in choreo.checkpoints:
-            mins, secs = divmod(int(cp.time_s), 60)
-            print(f"  {mins:02d}:{secs:02d} -> {cp.pose_name}")
+            total_ms = int(cp.time_s * 1000)
+            mins, rem = divmod(total_ms, 60000)
+            secs, ms = divmod(rem, 1000)
+            print(f"  {mins:02d}:{secs:02d}.{ms:03d} -> {cp.pose_name}")
         print("\n[Dry Run] Validation complete")
         return
 
@@ -183,13 +185,17 @@ def run_dual(args, poses_path: Path, verbose: bool):
     if args.dry_run:
         print("\n[Dry Run] 'he' schedule:")
         for cp in he_choreo.checkpoints:
-            mins, secs = divmod(int(cp.time_s), 60)
-            print(f"  {mins:02d}:{secs:02d} -> {cp.pose_name}")
+            total_ms = int(cp.time_s * 1000)
+            mins, rem = divmod(total_ms, 60000)
+            secs, ms = divmod(rem, 1000)
+            print(f"  {mins:02d}:{secs:02d}.{ms:03d} -> {cp.pose_name}")
 
         print("\n[Dry Run] 'she' schedule:")
         for cp in she_choreo.checkpoints:
-            mins, secs = divmod(int(cp.time_s), 60)
-            print(f"  {mins:02d}:{secs:02d} -> {cp.pose_name}")
+            total_ms = int(cp.time_s * 1000)
+            mins, rem = divmod(total_ms, 60000)
+            secs, ms = divmod(rem, 1000)
+            print(f"  {mins:02d}:{secs:02d}.{ms:03d} -> {cp.pose_name}")
 
         print("\n[Dry Run] Validation complete")
         return

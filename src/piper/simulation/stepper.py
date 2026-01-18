@@ -50,6 +50,16 @@ class SimulationStepper:
         self._target_joints = [0.0] * 6
         self._target_gripper = 0.0
 
+    @property
+    def physics_dt(self) -> float:
+        """Physics timestep in seconds."""
+        return self._physics_dt
+
+    @property
+    def steps_per_frame(self) -> int:
+        """Number of physics steps per display frame."""
+        return self._steps_per_frame
+
     def start(self) -> None:
         """No-op for compatibility (main-thread stepping)."""
         pass

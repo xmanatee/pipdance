@@ -1,21 +1,21 @@
 # Demo All Poses
 # Shows each available pose for 5 seconds
 
-00:00 - stand
-00:05 - interest_forward
-00:10 - kiss
-00:15 - look_from_left
-00:20 - forward_bit
-00:25 - forward_curve
-00:30 - forward_up
-00:35 - left_down
-00:40 - look_from_bottom
-00:45 - look_from_right
-00:50 - look_right
-00:55 - look_right_one
-01:00 - look_right_two
-01:05 - sleep
-01:10 - sit_sad
-01:15 - stand_one
-01:20 - stand_two
-01:25 - stand
+00:00.000 - stand
+00:05.000 - interest_forward
+00:10.000 - kiss
+00:15.000 - look_from_left
+00:20.000 - forward_bit
+00:25.000 - forward_curve
+00:30.000 - forward_up
+00:35.000 - left_down
+00:40.000 - look_from_bottom
+00:45.000 - look_from_right
+00:50.000 - look_right
+00:55.000 - look_right_one
+01:00.000 - look_right_two
+01:05.000 - sleep
+01:10.000 - sit_sad
+01:15.000 - stand_one
+01:20.000 - stand_two
+01:25.000 - stand
