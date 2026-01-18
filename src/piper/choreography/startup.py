@@ -40,7 +40,7 @@ def create_startup_waypoints(
     key_times = [0.0, STARTUP_SETTLE_S, 4.0, 5.0, 6.0, 7.0]
     key_j6_positions = [
         start_j6,                      # t=0: start
-        start_j6,                      # t=3: settled
+        start_j6,                      # settled
         start_j6 + STARTUP_J6_OFFSET,  # t=4: left
         start_j6,                      # t=5: center
         start_j6 - STARTUP_J6_OFFSET,  # t=6: right

@@ -25,7 +25,7 @@ from . import load_choreography
 from .script import Checkpoint
 from .trajectory import compile_trajectory, compile_dual_trajectory
 from .runner import run_trajectory, run_dual_trajectory
-from .startup import prepend_startup_sequence, STARTUP_DURATION_S, STARTUP_J6_OFFSET
+from .startup import prepend_startup_sequence, STARTUP_DURATION_S, STARTUP_SETTLE_S, STARTUP_J6_OFFSET
 
 
 def format_timestamp(cp: Checkpoint) -> str:
@@ -208,7 +208,7 @@ def run_single(args, poses_path: Path, verbose: bool):
         if args.startup:
             print("\n[Dry Run] Startup sequence:")
             print(f"  00:00.000 -> (starting pose)")
-            print(f"  00:03.000 -> (settled)")
+            print(f"  00:{int(STARTUP_SETTLE_S):02d}.000 -> (settled)")
             print(f"  00:04.000 -> J6 +{int(STARTUP_J6_OFFSET)}° (left)")
             print(f"  00:05.000 -> J6 (center)")
             print(f"  00:06.000 -> J6 -{int(STARTUP_J6_OFFSET)}° (right)")
@@ -291,7 +291,7 @@ def run_dual(args, poses_path: Path, verbose: bool):
         if args.startup:
             print("\n[Dry Run] Startup sequence (both arms):")
             print(f"  00:00.000 -> (starting pose)")
-            print(f"  00:03.000 -> (settled)")
+            print(f"  00:{int(STARTUP_SETTLE_S):02d}.000 -> (settled)")
             print(f"  00:04.000 -> J6 +{int(STARTUP_J6_OFFSET)}° (left)")
             print(f"  00:05.000 -> J6 (center)")
             print(f"  00:06.000 -> J6 -{int(STARTUP_J6_OFFSET)}° (right)")
