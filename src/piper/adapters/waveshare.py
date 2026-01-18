@@ -28,16 +28,29 @@ class WavesharePiperArm(PiperArmBase):
     ARM_ENABLE_ID = 0x050
     ARM_MODE_ID = 0x051
 
-    def __init__(self, port: str = "auto", verbose: bool = True):
+    # Default inter-message delay (seconds)
+    # 10ms is conservative; 2-5ms may work for low-latency applications
+    DEFAULT_MSG_DELAY = 0.01
+
+    def __init__(
+        self,
+        port: str = "auto",
+        verbose: bool = True,
+        msg_delay: Optional[float] = None,
+    ):
         """
         Initialize the Waveshare Piper arm adapter.
 
         Args:
             port: Serial port (e.g., '/dev/ttyUSB0') or 'auto' to detect
             verbose: Print status messages
+            msg_delay: Inter-message delay in seconds (default: 0.01)
+                       Lower values (0.002-0.005) improve latency but may
+                       cause dropped messages on slower systems.
         """
         super().__init__(verbose=verbose)
         self.port = port
+        self.msg_delay = msg_delay if msg_delay is not None else self.DEFAULT_MSG_DELAY
         self._bus: Optional[WaveshareBus] = None
         self._joints = [0.0] * 6  # Cached joint positions (radians)
         self._gripper = 0.0       # Cached gripper position
@@ -134,7 +147,8 @@ class WavesharePiperArm(PiperArmBase):
                 is_extended_id=False,
             )
             self._bus.send(msg)
-            time.sleep(0.01)
+            if self.msg_delay > 0:
+                time.sleep(self.msg_delay)
 
     def _send_gripper_command(self, position: float) -> None:
         # Gripper position: 0-70000 range

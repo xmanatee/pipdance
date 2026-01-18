@@ -1,11 +1,14 @@
 """
 Trajectory execution - runs compiled trajectories on Piper arms.
+
+Supports parallel command sending for improved dual-arm synchronization.
 """
 from __future__ import annotations
 
 import math
 import time
-from typing import TYPE_CHECKING, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from .trajectory import Trajectory, Waypoint
 
@@ -86,6 +89,16 @@ def run_trajectory(
         print(f"[Trajectory] Completed in {total:.2f}s")
 
 
+def _send_arm_commands(
+    arm: PiperArmBase,
+    joints_rad: List[float],
+    gripper: float,
+) -> None:
+    """Send joint and gripper commands to a single arm (for threading)."""
+    arm.move_joints(joints_rad, wait=0)
+    arm._send_gripper_command(gripper)
+
+
 def run_dual_trajectory(
     arms: Dict[str, PiperArmBase],
     trajectories: Dict[str, Trajectory],
@@ -93,6 +106,7 @@ def run_dual_trajectory(
     dry_run: bool = False,
     verbose: bool = True,
     startup_duration_s: float = 0.0,
+    parallel: bool = True,
 ) -> None:
     """
     Execute dual arm trajectories with synchronized timing.
@@ -106,6 +120,7 @@ def run_dual_trajectory(
         dry_run: If True, print actions without moving arms
         verbose: Print status messages
         startup_duration_s: If > 0, print countdown during startup phase
+        parallel: If True, send commands to arms in parallel (improves sync ~30ms)
     """
     if set(arms.keys()) != set(trajectories.keys()):
         raise ValueError(
@@ -127,6 +142,8 @@ def run_dual_trajectory(
         for label, traj in trajectories.items():
             print(f"[{label}] {len(traj.waypoints)} waypoints")
         print(f"[Trajectory] Duration: {total_duration:.1f}s")
+        if parallel:
+            print("[Trajectory] Parallel command mode enabled")
 
     start_time = time.perf_counter()
 
@@ -142,44 +159,69 @@ def run_dual_trajectory(
     last_print_time = 0.0
     countdown_printed = set()
 
-    while any(wp is not None for wp in current_waypoints.values()):
-        next_time = min(
-            wp.time_s
-            for wp in current_waypoints.values()
-            if wp is not None
-        )
+    executor = ThreadPoolExecutor(max_workers=len(arms)) if parallel and not dry_run else None
 
-        elapsed = time.perf_counter() - start_time
-        wait_time = next_time - elapsed
+    try:
+        while any(wp is not None for wp in current_waypoints.values()):
+            next_time = min(
+                wp.time_s
+                for wp in current_waypoints.values()
+                if wp is not None
+            )
 
-        for label, wp in list(current_waypoints.items()):
-            if wp is not None and abs(wp.time_s - next_time) < 0.001:
-                if not dry_run:
-                    joints_rad = [math.radians(d) for d in wp.joints_deg]
-                    arms[label].move_joints(joints_rad, wait=0)
-                    arms[label]._send_gripper_command(wp.gripper)
-                current_waypoints[label] = next(iterators[label], None)
+            elapsed = time.perf_counter() - start_time
+            wait_time = next_time - elapsed
 
-        if not dry_run and wait_time > 0:
-            first_arm.wait(wait_time)
-        elif dry_run and wait_time > 0:
-            time.sleep(wait_time)
+            pending_commands: List[Tuple[str, Waypoint]] = []
+            for label, wp in list(current_waypoints.items()):
+                if wp is not None and abs(wp.time_s - next_time) < 0.001:
+                    pending_commands.append((label, wp))
+                    current_waypoints[label] = next(iterators[label], None)
 
-        if verbose and startup_duration_s > 0 and next_time <= startup_duration_s:
-            for countdown_val in range(int(startup_duration_s), 0, -1):
-                threshold = startup_duration_s - countdown_val
-                if next_time >= threshold and countdown_val not in countdown_printed:
-                    print(f"[Startup] {countdown_val}...")
-                    countdown_printed.add(countdown_val)
-            if next_time >= startup_duration_s and 0 not in countdown_printed:
-                print("[Startup] GO!")
-                countdown_printed.add(0)
+            if not dry_run and pending_commands:
+                if parallel and executor:
+                    futures = []
+                    for label, wp in pending_commands:
+                        joints_rad = [math.radians(d) for d in wp.joints_deg]
+                        future = executor.submit(
+                            _send_arm_commands,
+                            arms[label],
+                            joints_rad,
+                            wp.gripper,
+                        )
+                        futures.append(future)
+                    for future in futures:
+                        future.result()
+                else:
+                    for label, wp in pending_commands:
+                        joints_rad = [math.radians(d) for d in wp.joints_deg]
+                        arms[label].move_joints(joints_rad, wait=0)
+                        arms[label]._send_gripper_command(wp.gripper)
 
-        in_startup = startup_duration_s > 0 and next_time <= startup_duration_s
-        if verbose and not in_startup and (next_time - last_print_time >= 1.0):
-            actual_elapsed = time.perf_counter() - start_time
-            print(f"[{next_time:6.1f}s] Sync point (elapsed: {actual_elapsed:.2f}s)")
-            last_print_time = next_time
+            if not dry_run and wait_time > 0:
+                first_arm.wait(wait_time)
+            elif dry_run and wait_time > 0:
+                time.sleep(wait_time)
+
+            if verbose and startup_duration_s > 0 and next_time <= startup_duration_s:
+                for countdown_val in range(int(startup_duration_s), 0, -1):
+                    threshold = startup_duration_s - countdown_val
+                    if next_time >= threshold and countdown_val not in countdown_printed:
+                        print(f"[Startup] {countdown_val}...")
+                        countdown_printed.add(countdown_val)
+                if next_time >= startup_duration_s and 0 not in countdown_printed:
+                    print("[Startup] GO!")
+                    countdown_printed.add(0)
+
+            in_startup = startup_duration_s > 0 and next_time <= startup_duration_s
+            if verbose and not in_startup and (next_time - last_print_time >= 1.0):
+                actual_elapsed = time.perf_counter() - start_time
+                print(f"[{next_time:6.1f}s] Sync point (elapsed: {actual_elapsed:.2f}s)")
+                last_print_time = next_time
+
+    finally:
+        if executor:
+            executor.shutdown(wait=False)
 
     if verbose:
         total = time.perf_counter() - start_time

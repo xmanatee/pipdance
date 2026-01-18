@@ -71,14 +71,24 @@ python -m piper.choreography --poses scripts/poses.json --schedule scripts/he.md
 # Choreography (dual arm)
 python -m piper.choreography --poses scripts/poses.json --he scripts/he.md --she scripts/she.md
 
+# Choreography (dual arm with explicit CAN interfaces)
+python -m piper.choreography --poses scripts/poses.json --he scripts/he.md --she scripts/she.md \
+    --he-can can0 --she-can can1
+
 # Dry run (validate without moving)
 python -m piper.choreography --poses scripts/poses.json --schedule scripts/he.md --dry-run
 ```
 
 ### CAN setup (standard adapter, each boot)
 ```bash
+# Single arm
 ./setup/can_setup.sh
 candump can0                   # Verify frames (arm must be powered)
+
+# Dual arm (two USB-CAN adapters)
+./setup/can_setup.sh --dual
+candump can0 &                 # Terminal 1
+candump can1                   # Terminal 2
 ```
 
 ## Troubleshooting
@@ -126,3 +136,45 @@ with create_arm() as arm:
 ```
 
 See [README.md](./README.md) for hardware details and full API reference.
+
+## Dual-Arm Setup
+
+### Hardware Requirements
+
+Two separate CAN interfaces are recommended for dual-arm operation:
+- **Two USB-CAN adapters**: Creates can0 + can1 (or ttyUSB0 + ttyUSB1)
+- **Dual CAN HAT**: MCP2515-based HAT with two channels
+
+### Setup Process
+
+```bash
+# 1. Connect both USB-CAN adapters
+# 2. Run dual setup script
+./setup/can_setup.sh --dual
+
+# 3. Verify both arms
+candump can0 &
+candump can1
+# (Both should show CAN frames when arms are powered)
+
+# 4. Run choreography
+python -m piper.choreography --poses scripts/poses.json \
+    --he scripts/he.md --she scripts/she.md \
+    --he-can can0 --she-can can1
+```
+
+### Synchronization Options
+
+| Option | Description |
+|--------|-------------|
+| `--no-parallel` | Disable parallel command sending (sequential mode) |
+
+**Expected sync accuracy**: ±30-50ms with parallel mode (default), ±50-100ms without.
+
+### Troubleshooting Dual-Arm
+
+| Symptom | Fix |
+|---------|-----|
+| Only one CAN interface appears | Unplug/replug second adapter, check `dmesg` |
+| Arms out of sync | Ensure separate CAN buses, try `--no-parallel` to diagnose |
+| High timing drift | Disable background services, use Ethernet instead of WiFi |

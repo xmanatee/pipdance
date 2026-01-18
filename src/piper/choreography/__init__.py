@@ -12,7 +12,7 @@ Usage:
         run_trajectory(arm, trajectory)
 
     # With interpolation for smooth motion:
-    trajectory = compile_trajectory(choreo, interpolation="cubic", interval_ms=100)
+    trajectory = compile_trajectory(choreo, interpolation="cubic", interval_ms=200)
 
 CLI:
     python -m piper.choreography --poses poses.json --schedule he.md

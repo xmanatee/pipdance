@@ -117,15 +117,22 @@ def main():
     parser.add_argument(
         "--interval",
         type=int,
-        default=100,
+        default=200,
         metavar="MS",
-        help="Waypoint interval in milliseconds for interpolated modes (default: 100)",
+        help="Waypoint interval in milliseconds for interpolated modes (default: 200)",
     )
     parser.add_argument(
         "--easing",
         choices=["none", "ease_in", "ease_out", "ease_in_out"],
         default="none",
         help="Easing function for interpolated modes (default: none)",
+    )
+
+    # Dual-arm synchronization options
+    parser.add_argument(
+        "--no-parallel",
+        action="store_true",
+        help="Disable parallel command sending (dual-arm mode only)",
     )
 
     args = parser.parse_args()
@@ -321,9 +328,12 @@ def run_dual(args, poses_path: Path, verbose: bool):
             print(f"  Easing: {args.easing}")
         if args.startup:
             print(f"  Startup: {STARTUP_DURATION_S:.0f}s")
+        print(f"  Parallel: {'no' if args.no_parallel else 'yes'}")
 
         print("\n[Dry Run] Validation complete")
         return
+
+    parallel = not args.no_parallel
 
     if args.simulation:
         from ..simulation.dual import create_dual_simulation_arms
@@ -334,7 +344,13 @@ def run_dual(args, poses_path: Path, verbose: bool):
         he_arm, she_arm = create_dual_simulation_arms(show_viewer=show_viewer, verbose=verbose)
         with he_arm, she_arm:
             arms = {"he": he_arm, "she": she_arm}
-            run_dual_trajectory(arms, trajectories, verbose=verbose, startup_duration_s=startup_duration)
+            run_dual_trajectory(
+                arms,
+                trajectories,
+                verbose=verbose,
+                startup_duration_s=startup_duration,
+                parallel=parallel,
+            )
     else:
         from .. import create_arm
 
@@ -345,7 +361,13 @@ def run_dual(args, poses_path: Path, verbose: bool):
         with create_arm(adapter="standard", can_port=args.he_can) as he_arm:
             with create_arm(adapter="standard", can_port=args.she_can) as she_arm:
                 arms = {"he": he_arm, "she": she_arm}
-                run_dual_trajectory(arms, trajectories, verbose=verbose, startup_duration_s=startup_duration)
+                run_dual_trajectory(
+                    arms,
+                    trajectories,
+                    verbose=verbose,
+                    startup_duration_s=startup_duration,
+                    parallel=parallel,
+                )
 
 
 if __name__ == "__main__":

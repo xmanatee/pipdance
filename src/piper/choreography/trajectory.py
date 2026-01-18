@@ -148,7 +148,7 @@ def _interpolate_speaking(
 def compile_trajectory(
     choreography: Choreography,
     *,
-    interval_ms: int = 100,
+    interval_ms: int = 200,
     interpolation: str = "none",
     easing: str = "none",
 ) -> Trajectory:
@@ -237,7 +237,7 @@ def compile_trajectory(
 def compile_dual_trajectory(
     choreographies: Dict[str, Choreography],
     *,
-    interval_ms: int = 100,
+    interval_ms: int = 200,
     interpolation: str = "none",
     easing: str = "none",
 ) -> Dict[str, Trajectory]:
