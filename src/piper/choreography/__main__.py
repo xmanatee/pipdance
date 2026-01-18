@@ -21,6 +21,15 @@ import sys
 from pathlib import Path
 
 from . import load_choreography, run_choreography, run_choreography_parallel
+from .script import Checkpoint
+
+
+def format_timestamp(cp: Checkpoint) -> str:
+    """Format checkpoint time as MM:SS.mmm."""
+    total_ms = int(cp.time_s * 1000)
+    mins, rem = divmod(total_ms, 60000)
+    secs, ms = divmod(rem, 1000)
+    return f"{mins:02d}:{secs:02d}.{ms:03d}"
 
 
 def main():
@@ -144,10 +153,7 @@ def run_single(args, poses_path: Path, verbose: bool):
     if args.dry_run:
         print("\n[Dry Run] Schedule:")
         for cp in choreo.checkpoints:
-            total_ms = int(cp.time_s * 1000)
-            mins, rem = divmod(total_ms, 60000)
-            secs, ms = divmod(rem, 1000)
-            print(f"  {mins:02d}:{secs:02d}.{ms:03d} -> {cp.pose_name}")
+            print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
         print("\n[Dry Run] Validation complete")
         return
 
@@ -185,17 +191,11 @@ def run_dual(args, poses_path: Path, verbose: bool):
     if args.dry_run:
         print("\n[Dry Run] 'he' schedule:")
         for cp in he_choreo.checkpoints:
-            total_ms = int(cp.time_s * 1000)
-            mins, rem = divmod(total_ms, 60000)
-            secs, ms = divmod(rem, 1000)
-            print(f"  {mins:02d}:{secs:02d}.{ms:03d} -> {cp.pose_name}")
+            print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
 
         print("\n[Dry Run] 'she' schedule:")
         for cp in she_choreo.checkpoints:
-            total_ms = int(cp.time_s * 1000)
-            mins, rem = divmod(total_ms, 60000)
-            secs, ms = divmod(rem, 1000)
-            print(f"  {mins:02d}:{secs:02d}.{ms:03d} -> {cp.pose_name}")
+            print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
 
         print("\n[Dry Run] Validation complete")
         return

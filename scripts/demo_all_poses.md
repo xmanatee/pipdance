@@ -1,4 +1,5 @@
 # Demo All Poses
+# Format: MM:SS.mmm - pose_name (arrival time)
 # Shows each available pose for 5 seconds
 
 00:00.000 - stand
