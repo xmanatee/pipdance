@@ -28,8 +28,8 @@
 00:49.899 - sit_look_forward speaking
 00:51.687 - look_from_left speaking
 00:53.638 - look_from_left speaking
-00:55.333 - look_from_right speaking
-00:57.051 - look_from_right speaking
+00:55.333 - lean_forward speaking
+00:57.051 - kiss speaking
 00:59.048 - look_from_right speaking
 01:00.696 - lean_forward speaking
 01:02.392 - lean_forward speaking
@@ -37,18 +37,18 @@
 01:05.689 - look_left speaking
 01:09.799 - look_right speaking
 01:11.285 - lean_back speaking
-01:15.186 - lean_forward speaking
-01:17.090 - lean_forward speaking
-01:18.692 - lean_forward speaking
-01:20.132 - lean_forward speaking
+01:15.186 - lean_forward groove-x0.5 speaking
+01:17.090 - lean_back groove-x0.5 speaking
+01:18.692 - lean_forward groove-x0.5 speaking
+01:20.132 - stand groove-x0.5 speaking
 01:22.337 - stand groove-x2 speaking
 01:24.033 - kiss groove-x2 speaking
 01:25.635 - kiss groove-x2 speaking
 01:27.608 - sit_look_forward groove-x2 speaking
 01:29.257 - right_down groove-x2 speaking
-01:30.813 - right_down groove-x2 speaking
-01:33.529 - right_down groove-x2 speaking
-01:35.039 - right_down groove-x2 speaking
+01:30.813 - sit_look_forward groove-x2 speaking
+01:33.529 - kiss groove-x2 speaking
+01:35.039 - sit_look_right groove-x2 speaking
 01:36.943 - right_down groove-x2 speaking
 01:38.545 - sit_look_right groove-x2 speaking
 01:40.635 - kiss groove-x2 speaking
