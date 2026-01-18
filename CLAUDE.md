@@ -47,7 +47,7 @@ Mac ──ethernet──► Raspberry Pi ──USB──► USB-to-CAN ──►
 
 ### Deploy to Pi (from Mac)
 ```bash
-scp -r src/ setup/ examples/ pi3@192.168.2.3:~/pipdance/
+scp -r src/ setup/ examples/ scripts/ pi3@192.168.2.3:~/pipdance/
 ```
 
 ### Run on Pi
@@ -64,6 +64,15 @@ python setup/test.py --test all      # All tests
 
 # Demo
 python examples/demo.py
+
+# Choreography (single arm)
+python -m piper.choreography --poses scripts/poses.json --schedule scripts/he.md
+
+# Choreography (dual arm)
+python -m piper.choreography --poses scripts/poses.json --he scripts/he.md --she scripts/she.md
+
+# Dry run (validate without moving)
+python -m piper.choreography --poses scripts/poses.json --schedule scripts/he.md --dry-run
 ```
 
 ### CAN setup (standard adapter, each boot)
@@ -80,5 +89,39 @@ candump can0                   # Verify frames (arm must be powered)
 | `can0` not found | Run `./can_setup.sh` or replug adapter |
 | No CAN frames | Check wiring, ensure arm is powered |
 | Import errors | Activate venv: `source ~/piper-venv/bin/activate` |
+
+## Choreography Module
+
+The `piper.choreography` module enables timed pose sequences using the adapter pattern.
+
+### File Formats
+
+**Poses JSON** (`scripts/poses.json`):
+```json
+{
+  "scenes": [
+    {"name": "stand", "joint_positions": {"J1": 0, "J2": 90, "J3": -5, "J4": 0, "J5": 0, "J6": 0}}
+  ]
+}
+```
+
+**Schedule Markdown** (`scripts/he.md`):
+```markdown
+# Comments start with #
+00:00 - stand
+00:06 - left_down
+01:42 - kiss
+```
+Each line specifies when the arm should **arrive** at that pose.
+
+### Python API
+```python
+from piper import create_arm
+from piper.choreography import load_choreography, run_choreography
+
+choreo = load_choreography("scripts/poses.json", "scripts/he.md")
+with create_arm() as arm:
+    run_choreography(arm, choreo)
+```
 
 See [README.md](./README.md) for hardware details and full API reference.

@@ -1,0 +1,191 @@
+{
+  "scenes": [
+    {
+      "name": "stand",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 90,
+        "J3": -5,
+        "J4": 0,
+        "J5": 0,
+        "J6": 0
+      }
+    },
+    {
+      "name": "interest_forward",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 45,
+        "J3": -90,
+        "J4": 0,
+        "J5": -30,
+        "J6": 0
+      }
+    },
+    {
+      "name": "kiss",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 150,
+        "J3": -120,
+        "J4": 0,
+        "J5": 45,
+        "J6": 0
+      }
+    },
+    {
+      "name": "look_from_left",
+      "joint_positions": {
+        "J1": -90,
+        "J2": 60,
+        "J3": -70,
+        "J4": -30,
+        "J5": 0,
+        "J6": 45
+      }
+    },
+    {
+      "name": "forward_bit",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 55,
+        "J3": -70,
+        "J4": 0,
+        "J5": -10,
+        "J6": 0
+      }
+    },
+    {
+      "name": "forward_curve",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 35,
+        "J3": -120,
+        "J4": 20,
+        "J5": -15,
+        "J6": 0
+      }
+    },
+    {
+      "name": "forward_up",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 60,
+        "J3": -70,
+        "J4": 0,
+        "J5": 60,
+        "J6": 0
+      }
+    },
+    {
+      "name": "left_down",
+      "joint_positions": {
+        "J1": -60,
+        "J2": 40,
+        "J3": -90,
+        "J4": -10,
+        "J5": -30,
+        "J6": 0
+      }
+    },
+    {
+      "name": "look_from_bottom",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 45,
+        "J3": -90,
+        "J4": 0,
+        "J5": 0,
+        "J6": 0
+      }
+    },
+    {
+      "name": "look_from_right",
+      "joint_positions": {
+        "J1": 90,
+        "J2": 60,
+        "J3": -70,
+        "J4": 15,
+        "J5": 0,
+        "J6": -30
+      }
+    },
+    {
+      "name": "look_right",
+      "joint_positions": {
+        "J1": 90,
+        "J2": 90,
+        "J3": -10,
+        "J4": 0,
+        "J5": 0,
+        "J6": -45
+      }
+    },
+    {
+      "name": "look_right_one",
+      "joint_positions": {
+        "J1": 60,
+        "J2": 75,
+        "J3": -30,
+        "J4": 0,
+        "J5": 0,
+        "J6": -20
+      }
+    },
+    {
+      "name": "look_right_two",
+      "joint_positions": {
+        "J1": 100,
+        "J2": 75,
+        "J3": -30,
+        "J4": 0,
+        "J5": 0,
+        "J6": -30
+      }
+    },
+    {
+      "name": "sleep",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 90,
+        "J3": 0,
+        "J4": 0,
+        "J5": 0,
+        "J6": 0
+      }
+    },
+    {
+      "name": "sit_sad",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 50,
+        "J3": -120,
+        "J4": 10,
+        "J5": -40,
+        "J6": 0
+      }
+    },
+    {
+      "name": "stand_one",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 95,
+        "J3": -15,
+        "J4": 0,
+        "J5": 0,
+        "J6": 0
+      }
+    },
+    {
+      "name": "stand_two",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 80,
+        "J3": -40,
+        "J4": 10,
+        "J5": 0,
+        "J6": 0
+      }
+    }
+  ]
+}
