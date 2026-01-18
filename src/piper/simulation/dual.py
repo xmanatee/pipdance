@@ -207,7 +207,7 @@ class DualSimulationArm(PiperArmBase):
 
 def create_dual_simulation_arms(
     show_viewer: bool = True,
-    separation: float = 1.0,
+    separation: float = 1.3,
     urdf_path: Path | None = None,
     verbose: bool = True,
 ) -> tuple[DualSimulationArm, DualSimulationArm]:
