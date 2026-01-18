@@ -15,13 +15,24 @@ from typing import Dict, List
 
 JOINT_ORDER = ["J1", "J2", "J3", "J4", "J5", "J6"]
 
+# Conservative speed limits matching URDF joint6 velocity=3 rad/s (~172°/s)
 JOINT_MAX_SPEED_DEG = {
-    "J1": 180.0,
-    "J2": 195.0,
-    "J3": 180.0,
-    "J4": 225.0,
-    "J5": 225.0,
-    "J6": 225.0,
+    "J1": 172.0,
+    "J2": 172.0,
+    "J3": 172.0,
+    "J4": 172.0,
+    "J5": 172.0,
+    "J6": 172.0,
+}
+
+# Joint position limits from URDF (in degrees)
+JOINT_LIMITS_DEG = {
+    "J1": (-150.0, 150.0),  # URDF: -2.618 to 2.618 rad
+    "J2": (0.0, 180.0),     # URDF: 0 to 3.14 rad
+    "J3": (-170.0, 0.0),    # URDF: -2.967 to 0 rad
+    "J4": (-100.0, 100.0),  # URDF: -1.745 to 1.745 rad
+    "J5": (-70.0, 70.0),    # URDF: -1.22 to 1.22 rad
+    "J6": (-120.0, 120.0),  # URDF: -2.0944 to 2.0944 rad
 }
 
 # Pattern for simplified schedule: "MM:SS.mmm - pose_name"
@@ -129,6 +140,23 @@ def load_choreography(
                 f"Pose '{cp.pose_name}' at {cp.time_s}s not found in poses file. "
                 f"Available: {', '.join(sorted(poses.keys()))}"
             )
+
+    # Validate joint positions are within URDF limits
+    validated_poses = set()
+    for cp in checkpoints:
+        if cp.pose_name in validated_poses:
+            continue
+        validated_poses.add(cp.pose_name)
+
+        pose = poses[cp.pose_name]
+        for idx, joint in enumerate(JOINT_ORDER):
+            pos = pose.joints_deg[idx]
+            lower, upper = JOINT_LIMITS_DEG[joint]
+            if pos < lower or pos > upper:
+                warnings.append(
+                    f"Joint limit: pose '{pose.name}' {joint}={pos:.1f}° "
+                    f"outside [{lower:.1f}°, {upper:.1f}°]"
+                )
 
     # Check speed limits between consecutive checkpoints
     for i in range(1, len(checkpoints)):

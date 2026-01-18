@@ -10,6 +10,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import genesis as gs
 
+# URDF joint7/8 prismatic limit (meters)
+GRIPPER_RANGE_M = 0.035
+
 
 class SimulationStepper:
     """
@@ -92,7 +95,7 @@ class SimulationStepper:
         g1 = float(pos[self._gripper_joints[0]])
         g2 = float(pos[self._gripper_joints[1]])
         avg = (g1 + g2) / 2.0
-        return min(1.0, max(0.0, avg / 0.04))
+        return min(1.0, max(0.0, avg / GRIPPER_RANGE_M))
 
     def _apply_controls(self) -> None:
         """Apply current joint and gripper targets to the entity."""
@@ -102,7 +105,7 @@ class SimulationStepper:
         self._entity.control_dofs_position(targets, dofs_idx_local=self._arm_joints)
 
         if self._has_gripper:
-            gripper_pos = self._target_gripper * 0.04
+            gripper_pos = self._target_gripper * GRIPPER_RANGE_M
             gripper_targets = torch.tensor(
                 [gripper_pos, gripper_pos], dtype=torch.float32
             )

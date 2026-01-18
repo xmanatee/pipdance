@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from ..base import PiperArmBase
 from .scene import create_scene, configure_motors, DEFAULT_URDF
+from .stepper import GRIPPER_RANGE_M
 
 if TYPE_CHECKING:
     import genesis as gs
@@ -97,7 +98,7 @@ class DualSimulationStepper:
         g1 = float(pos[self._gripper_joints[0]])
         g2 = float(pos[self._gripper_joints[1]])
         avg = (g1 + g2) / 2.0
-        return min(1.0, max(0.0, avg / 0.04))
+        return min(1.0, max(0.0, avg / GRIPPER_RANGE_M))
 
     def _apply_controls(self) -> None:
         """Apply targets to all entities."""
@@ -110,7 +111,7 @@ class DualSimulationStepper:
             entity.control_dofs_position(joint_targets, dofs_idx_local=self._arm_joints)
 
             if target["has_gripper"]:
-                gripper_pos = target["gripper"] * 0.04
+                gripper_pos = target["gripper"] * GRIPPER_RANGE_M
                 gripper_targets = torch.tensor(
                     [gripper_pos, gripper_pos], dtype=torch.float32
                 )
