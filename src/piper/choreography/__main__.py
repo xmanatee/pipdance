@@ -21,8 +21,10 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import load_choreography, run_choreography, run_dual_choreography
+from . import load_choreography
 from .script import Checkpoint
+from .trajectory import compile_trajectory, compile_dual_trajectory
+from .runner import run_trajectory, run_dual_trajectory
 
 
 def format_timestamp(cp: Checkpoint) -> str:
@@ -99,6 +101,27 @@ def main():
         help="Reduce output verbosity",
     )
 
+    # Trajectory options
+    parser.add_argument(
+        "--interpolation",
+        choices=["none", "linear", "cubic"],
+        default="none",
+        help="Interpolation: none (checkpoints only), linear, cubic (default: none)",
+    )
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=100,
+        metavar="MS",
+        help="Waypoint interval in milliseconds for interpolated modes (default: 100)",
+    )
+    parser.add_argument(
+        "--easing",
+        choices=["none", "ease_in", "ease_out", "ease_in_out"],
+        default="none",
+        help="Easing function for interpolated modes (default: none)",
+    )
+
     args = parser.parse_args()
 
     single_mode = args.schedule is not None
@@ -150,10 +173,28 @@ def run_single(args, poses_path: Path, verbose: bool):
             for w in choreo.warnings:
                 print(f"  - {w}")
 
+    # Compile to trajectory (always)
+    trajectory = compile_trajectory(
+        choreo,
+        interval_ms=args.interval,
+        interpolation=args.interpolation,
+        easing=args.easing,
+    )
+    if verbose:
+        if args.interpolation == "none":
+            print(f"[Trajectory] {len(trajectory)} waypoints (checkpoint mode)")
+        else:
+            print(f"[Trajectory] {len(trajectory)} waypoints at {args.interval}ms intervals ({args.interpolation})")
+
     if args.dry_run:
         print("\n[Dry Run] Schedule:")
         for cp in choreo.checkpoints:
             print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
+        print(f"\n[Dry Run] Would execute {len(trajectory)} waypoints")
+        print(f"  Interpolation: {args.interpolation}")
+        if args.interpolation != "none":
+            print(f"  Interval: {args.interval}ms")
+            print(f"  Easing: {args.easing}")
         print("\n[Dry Run] Validation complete")
         return
 
@@ -164,11 +205,11 @@ def run_single(args, poses_path: Path, verbose: bool):
         show_viewer = not args.no_viewer
         print(f"[Choreography] Starting simulation (viewer={'on' if show_viewer else 'off'})...")
         with create_arm(adapter="simulation", show_viewer=show_viewer) as arm:
-            run_choreography(arm, choreo, dry_run=False, verbose=verbose)
+            run_trajectory(arm, trajectory, dry_run=False, verbose=verbose)
     else:
         print(f"[Choreography] Connecting to arm on {args.can}...")
         with create_arm(can_port=args.can) as arm:
-            run_choreography(arm, choreo, dry_run=False, verbose=verbose)
+            run_trajectory(arm, trajectory, dry_run=False, verbose=verbose)
 
 
 def run_dual(args, poses_path: Path, verbose: bool):
@@ -183,10 +224,25 @@ def run_dual(args, poses_path: Path, verbose: bool):
 
     he_choreo = load_choreography(poses_path, he_path)
     she_choreo = load_choreography(poses_path, she_path)
+    choreographies = {"he": he_choreo, "she": she_choreo}
 
     if verbose:
         print(f"[he]  Loaded {len(he_choreo.checkpoints)} checkpoints")
         print(f"[she] Loaded {len(she_choreo.checkpoints)} checkpoints")
+
+    # Compile trajectories (always)
+    trajectories = compile_dual_trajectory(
+        choreographies,
+        interval_ms=args.interval,
+        interpolation=args.interpolation,
+        easing=args.easing,
+    )
+    if verbose:
+        for label, traj in trajectories.items():
+            if args.interpolation == "none":
+                print(f"[{label}] {len(traj)} waypoints (checkpoint mode)")
+            else:
+                print(f"[{label}] {len(traj)} waypoints at {args.interval}ms intervals ({args.interpolation})")
 
     if args.dry_run:
         print("\n[Dry Run] 'he' schedule:")
@@ -197,10 +253,16 @@ def run_dual(args, poses_path: Path, verbose: bool):
         for cp in she_choreo.checkpoints:
             print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
 
+        print(f"\n[Dry Run] Would execute trajectories:")
+        for label, traj in trajectories.items():
+            print(f"  [{label}] {len(traj)} waypoints")
+        print(f"  Interpolation: {args.interpolation}")
+        if args.interpolation != "none":
+            print(f"  Interval: {args.interval}ms")
+            print(f"  Easing: {args.easing}")
+
         print("\n[Dry Run] Validation complete")
         return
-
-    choreographies = {"he": he_choreo, "she": she_choreo}
 
     if args.simulation:
         from ..simulation.dual import create_dual_simulation_arms
@@ -210,11 +272,8 @@ def run_dual(args, poses_path: Path, verbose: bool):
 
         he_arm, she_arm = create_dual_simulation_arms(show_viewer=show_viewer, verbose=verbose)
         with he_arm, she_arm:
-            run_dual_choreography(
-                arms={"he": he_arm, "she": she_arm},
-                choreographies=choreographies,
-                verbose=verbose,
-            )
+            arms = {"he": he_arm, "she": she_arm}
+            run_dual_trajectory(arms, trajectories, verbose=verbose)
     else:
         from .. import create_arm
 
@@ -224,11 +283,8 @@ def run_dual(args, poses_path: Path, verbose: bool):
 
         with create_arm(adapter="standard", can_port=args.he_can) as he_arm:
             with create_arm(adapter="standard", can_port=args.she_can) as she_arm:
-                run_dual_choreography(
-                    arms={"he": he_arm, "she": she_arm},
-                    choreographies=choreographies,
-                    verbose=verbose,
-                )
+                arms = {"he": he_arm, "she": she_arm}
+                run_dual_trajectory(arms, trajectories, verbose=verbose)
 
 
 if __name__ == "__main__":

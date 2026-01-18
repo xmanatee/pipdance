@@ -1,5 +1,5 @@
 """
-Choreography execution - runs choreography on Piper arms using the adapter pattern.
+Trajectory execution - runs compiled trajectories on Piper arms.
 """
 from __future__ import annotations
 
@@ -7,159 +7,149 @@ import math
 import time
 from typing import TYPE_CHECKING, Dict, Optional
 
-from .script import Choreography, load_choreography
+from .trajectory import Trajectory, Waypoint
 
 if TYPE_CHECKING:
     from ..base import PiperArmBase
 
 
-def run_choreography(
+def run_trajectory(
     arm: PiperArmBase,
-    choreography: Choreography,
+    trajectory: Trajectory,
     *,
     dry_run: bool = False,
     verbose: bool = True,
 ) -> None:
     """
-    Run a choreography sequence on a single arm.
+    Execute a compiled trajectory on a single arm.
 
-    The arm moves between checkpoints, arriving at each pose at the specified time.
-    Uses blocking waits between movements.
+    Sends position commands at each waypoint time using high-resolution timing.
 
     Args:
         arm: Connected PiperArmBase instance
-        choreography: Loaded choreography with poses and checkpoints
+        trajectory: Compiled trajectory with waypoints
         dry_run: If True, print actions without moving arm
         verbose: Print status messages
     """
-    checkpoints = choreography.checkpoints
-    poses = choreography.poses
+    waypoints = trajectory.waypoints
 
-    if not checkpoints:
+    if not waypoints:
         if verbose:
-            print("[Choreography] No checkpoints to execute")
+            print("[Trajectory] No waypoints to execute")
         return
 
-    if verbose and choreography.warnings:
-        print("[Choreography] Warnings:")
-        for w in choreography.warnings:
-            print(f"  - {w}")
+    if verbose:
+        if trajectory.interval_ms > 0:
+            print(f"[Trajectory] Executing {len(waypoints)} waypoints over {trajectory.total_duration_s:.1f}s")
+            print(f"[Trajectory] Interval: {trajectory.interval_ms}ms, Interpolation: {trajectory.interpolation}, Easing: {trajectory.easing.value}")
+        else:
+            print(f"[Trajectory] Executing {len(waypoints)} waypoints over {trajectory.total_duration_s:.1f}s")
 
-    start_time = time.time()
+    start_time = time.perf_counter()
 
-    for cp in checkpoints:
-        pose = poses[cp.pose_name]
-        joints_rad = [math.radians(d) for d in pose.joints_deg]
-
-        elapsed = time.time() - start_time
-        wait_until = cp.time_s - elapsed
-
-        if wait_until > 0:
-            if verbose:
-                print(f"[{cp.time_s:6.1f}s] Waiting {wait_until:.1f}s...")
-            arm.wait(wait_until)
-
-        if verbose:
-            print(f"[{cp.time_s:6.1f}s] -> {cp.pose_name}")
+    last_print_time = 0.0
+    for wp in waypoints:
+        elapsed = time.perf_counter() - start_time
+        wait_time = wp.time_s - elapsed
 
         if not dry_run:
+            joints_rad = [math.radians(d) for d in wp.joints_deg]
             arm.move_joints(joints_rad, wait=0)
+            if wait_time > 0:
+                arm.wait(wait_time)
+        elif wait_time > 0:
+            time.sleep(wait_time)
+
+        if verbose and (wp.time_s - last_print_time >= 1.0 or wp == waypoints[-1]):
+            actual_elapsed = time.perf_counter() - start_time
+            print(f"[{wp.time_s:6.1f}s] Waypoint (elapsed: {actual_elapsed:.2f}s)")
+            last_print_time = wp.time_s
 
     if verbose:
-        total = time.time() - start_time
-        print(f"[Choreography] Completed in {total:.1f}s")
+        total = time.perf_counter() - start_time
+        print(f"[Trajectory] Completed in {total:.2f}s")
 
 
-def run_dual_choreography(
+def run_dual_trajectory(
     arms: Dict[str, PiperArmBase],
-    choreographies: Dict[str, Choreography],
+    trajectories: Dict[str, Trajectory],
     *,
     dry_run: bool = False,
     verbose: bool = True,
 ) -> None:
     """
-    Run dual arm choreography using merged timeline.
+    Execute dual arm trajectories with synchronized timing.
 
-    Works with both hardware and simulation adapters. Events from all
-    choreographies are merged and executed in time order, using the
-    adapter's wait() method between events.
+    Both arms receive position commands at the same waypoint times
+    for synchronized motion.
 
     Args:
-        arms: Dict mapping label to connected arm (e.g., {"he": arm1, "she": arm2})
-        choreographies: Dict mapping label to choreography
+        arms: Dict mapping label to connected arm
+        trajectories: Dict mapping label to compiled trajectory
         dry_run: If True, print actions without moving arms
         verbose: Print status messages
     """
-    if set(arms.keys()) != set(choreographies.keys()):
+    if set(arms.keys()) != set(trajectories.keys()):
         raise ValueError(
-            f"Arms and choreographies must have matching keys. "
-            f"Arms: {set(arms.keys())}, Choreographies: {set(choreographies.keys())}"
+            f"Arms and trajectories must have matching keys. "
+            f"Arms: {set(arms.keys())}, Trajectories: {set(trajectories.keys())}"
         )
 
-    events = []
-    for label, choreo in choreographies.items():
-        poses = choreo.poses
-        for cp in choreo.checkpoints:
-            pose = poses[cp.pose_name]
-            joints_rad = [math.radians(d) for d in pose.joints_deg]
-            events.append((cp.time_s, label, cp.pose_name, joints_rad))
+    total_waypoints = max(len(t.waypoints) for t in trajectories.values()) if trajectories else 0
+    total_duration = max(t.total_duration_s for t in trajectories.values()) if trajectories else 0.0
 
-    events.sort(key=lambda e: e[0])
-
-    if not events:
+    if total_waypoints == 0:
         if verbose:
-            print("[Choreography] No events to execute")
+            print("[Trajectory] No waypoints to execute")
         return
 
-    if verbose:
-        for label, choreo in choreographies.items():
-            if choreo.warnings:
-                print(f"[{label}] Warnings:")
-                for w in choreo.warnings:
-                    print(f"  - {w}")
-
     first_arm = next(iter(arms.values()))
-    start_time = time.time()
-
-    for time_s, label, pose_name, joints_rad in events:
-        elapsed = time.time() - start_time
-        wait_time = time_s - elapsed
-
-        if wait_time > 0:
-            if verbose:
-                print(f"[{time_s:6.1f}s] Waiting {wait_time:.1f}s...")
-            first_arm.wait(wait_time)
-
-        if verbose:
-            print(f"[{time_s:6.1f}s] [{label}] -> {pose_name}")
-
-        if not dry_run:
-            arms[label].move_joints(joints_rad, wait=0)
 
     if verbose:
-        total = time.time() - start_time
-        print(f"[Choreography] Completed in {total:.1f}s")
+        for label, traj in trajectories.items():
+            print(f"[{label}] {len(traj.waypoints)} waypoints")
+        print(f"[Trajectory] Duration: {total_duration:.1f}s")
 
+    start_time = time.perf_counter()
 
-def load_and_run(
-    poses_path: str,
-    schedule_path: str,
-    arm: Optional[PiperArmBase] = None,
-    *,
-    dry_run: bool = False,
-    verbose: bool = True,
-) -> None:
-    """
-    Convenience function to load and run a choreography.
+    iterators = {
+        label: iter(traj.waypoints)
+        for label, traj in trajectories.items()
+    }
+    current_waypoints: Dict[str, Optional[Waypoint]] = {
+        label: next(it, None)
+        for label, it in iterators.items()
+    }
 
-    If no arm is provided, auto-detects and connects.
-    """
-    from .. import create_arm
+    last_print_time = 0.0
 
-    choreography = load_choreography(poses_path, schedule_path)
+    while any(wp is not None for wp in current_waypoints.values()):
+        next_time = min(
+            wp.time_s
+            for wp in current_waypoints.values()
+            if wp is not None
+        )
 
-    if arm is not None:
-        run_choreography(arm, choreography, dry_run=dry_run, verbose=verbose)
-    else:
-        with create_arm() as arm:
-            run_choreography(arm, choreography, dry_run=dry_run, verbose=verbose)
+        elapsed = time.perf_counter() - start_time
+        wait_time = next_time - elapsed
+
+        for label, wp in list(current_waypoints.items()):
+            if wp is not None and abs(wp.time_s - next_time) < 0.001:
+                if not dry_run:
+                    joints_rad = [math.radians(d) for d in wp.joints_deg]
+                    arms[label].move_joints(joints_rad, wait=0)
+                current_waypoints[label] = next(iterators[label], None)
+
+        if not dry_run and wait_time > 0:
+            first_arm.wait(wait_time)
+        elif dry_run and wait_time > 0:
+            time.sleep(wait_time)
+
+        if verbose and (next_time - last_print_time >= 1.0):
+            actual_elapsed = time.perf_counter() - start_time
+            print(f"[{next_time:6.1f}s] Sync point (elapsed: {actual_elapsed:.2f}s)")
+            last_print_time = next_time
+
+    if verbose:
+        total = time.perf_counter() - start_time
+        print(f"[Trajectory] Completed in {total:.2f}s")
