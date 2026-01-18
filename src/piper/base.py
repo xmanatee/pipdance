@@ -143,6 +143,11 @@ class PiperArmBase(ABC):
             print(f"  Joint {i+1}: {rad2deg(j):+7.2f}°")
         print(f"  Gripper: {s.gripper:.2f}")
 
+    def wait(self, duration: float) -> None:
+        """Wait for specified duration. Override for simulation to step physics."""
+        if duration > 0:
+            time.sleep(duration)
+
     def __enter__(self):
         self.connect()
         return self

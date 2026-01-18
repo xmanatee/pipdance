@@ -59,7 +59,7 @@ def run_choreography(
         if wait_until > 0:
             if verbose:
                 print(f"[{cp.time_s:6.1f}s] Waiting {wait_until:.1f}s...")
-            time.sleep(wait_until)
+            arm.wait(wait_until)
 
         if verbose:
             print(f"[{cp.time_s:6.1f}s] -> {cp.pose_name}")

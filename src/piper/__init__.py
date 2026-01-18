@@ -20,9 +20,6 @@ Or specify adapter explicitly:
 from typing import Literal, Optional
 
 from .base import PiperArmBase, ArmState, deg2rad, rad2deg
-from .adapters import StandardPiperArm, WavesharePiperArm
-from .adapters.standard import find_socketcan_port
-from .can import find_waveshare_port
 
 
 __all__ = [
@@ -30,15 +27,13 @@ __all__ = [
     "create_arm",
     "detect_adapter",
     "PiperArmBase",
-    "StandardPiperArm",
-    "WavesharePiperArm",
     "ArmState",
     "deg2rad",
     "rad2deg",
 ]
 
 
-AdapterType = Literal["auto", "standard", "waveshare"]
+AdapterType = Literal["auto", "standard", "waveshare", "simulation"]
 
 
 def detect_adapter() -> Optional[str]:
@@ -50,10 +45,20 @@ def detect_adapter() -> Optional[str]:
         'waveshare' if Waveshare USB-CAN-A is found
         None if no adapter found
     """
-    if find_socketcan_port():
-        return "standard"
-    if find_waveshare_port():
-        return "waveshare"
+    try:
+        from .adapters.standard import find_socketcan_port
+        if find_socketcan_port():
+            return "standard"
+    except ImportError:
+        pass
+
+    try:
+        from .can import find_waveshare_port
+        if find_waveshare_port():
+            return "waveshare"
+    except ImportError:
+        pass
+
     return None
 
 
@@ -62,7 +67,7 @@ def create_arm(adapter: AdapterType = "auto", **kwargs) -> PiperArmBase:
     Create a Piper arm controller with the specified adapter.
 
     Args:
-        adapter: Adapter type - 'auto', 'standard', or 'waveshare'
+        adapter: Adapter type - 'auto', 'standard', 'waveshare', or 'simulation'
         **kwargs: Additional arguments passed to the adapter constructor
 
     Returns:
@@ -82,9 +87,14 @@ def create_arm(adapter: AdapterType = "auto", **kwargs) -> PiperArmBase:
         adapter = detected
 
     if adapter == "standard":
+        from .adapters import StandardPiperArm
         return StandardPiperArm(**kwargs)
     elif adapter == "waveshare":
+        from .adapters import WavesharePiperArm
         return WavesharePiperArm(**kwargs)
+    elif adapter == "simulation":
+        from .adapters import SimulationPiperArm
+        return SimulationPiperArm(**kwargs)
     else:
         raise ValueError(f"Unknown adapter type: {adapter}")
 

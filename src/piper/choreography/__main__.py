@@ -9,6 +9,10 @@ Dual arm:
     python -m piper.choreography --poses poses.json \\
         --he he.md --she she.md --he-can can0 --she-can can1
 
+Simulation (no hardware required):
+    python -m piper.choreography --poses poses.json --schedule he.md --simulation
+    python -m piper.choreography --poses poses.json --schedule he.md --simulation --no-viewer
+
 Dry run (validate without moving):
     python -m piper.choreography --poses poses.json --schedule he.md --dry-run
 """
@@ -68,6 +72,16 @@ def main():
         "--dry-run",
         action="store_true",
         help="Validate and print without moving arm",
+    )
+    parser.add_argument(
+        "--simulation",
+        action="store_true",
+        help="Run in Genesis simulation instead of real hardware",
+    )
+    parser.add_argument(
+        "--no-viewer",
+        action="store_true",
+        help="Run simulation without visualization window",
     )
     parser.add_argument(
         "--quiet",
@@ -138,9 +152,15 @@ def run_single(args, poses_path: Path, verbose: bool):
     # Import here to avoid import errors when dry-running on Mac
     from .. import create_arm
 
-    print(f"[Choreography] Connecting to arm on {args.can}...")
-    with create_arm(can_port=args.can) as arm:
-        run_choreography(arm, choreo, dry_run=False, verbose=verbose)
+    if args.simulation:
+        show_viewer = not args.no_viewer
+        print(f"[Choreography] Starting simulation (viewer={'on' if show_viewer else 'off'})...")
+        with create_arm(adapter="simulation", show_viewer=show_viewer) as arm:
+            run_choreography(arm, choreo, dry_run=False, verbose=verbose)
+    else:
+        print(f"[Choreography] Connecting to arm on {args.can}...")
+        with create_arm(can_port=args.can) as arm:
+            run_choreography(arm, choreo, dry_run=False, verbose=verbose)
 
 
 def run_dual(args, poses_path: Path, verbose: bool):
@@ -173,6 +193,10 @@ def run_dual(args, poses_path: Path, verbose: bool):
 
         print("\n[Dry Run] Validation complete")
         return
+
+    if args.simulation:
+        print("Error: --simulation is not yet supported for dual arm mode", file=sys.stderr)
+        sys.exit(1)
 
     # Import here to avoid import errors when dry-running on Mac
     from .. import create_arm
