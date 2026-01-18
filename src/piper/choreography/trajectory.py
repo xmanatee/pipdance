@@ -8,10 +8,11 @@ When interpolation is "linear" or "cubic", waypoints are placed at fixed interva
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-from .script import Choreography
+from .script import Choreography, Checkpoint
 from .interpolation import EasingType, create_interpolator
+from .groove import apply_groove_to_joints, create_groove_config
 
 
 @dataclass
@@ -29,9 +30,47 @@ class Trajectory:
     interpolation: str
     easing: EasingType
     total_duration_s: float
+    groove_bpm: Optional[float] = None
 
     def __len__(self) -> int:
         return len(self.waypoints)
+
+
+def _interpolate_groove_amplitude(
+    time_s: float,
+    checkpoints: List[Checkpoint],
+) -> float:
+    """
+    Interpolate groove amplitude for a given time between checkpoints.
+
+    Uses linear interpolation between checkpoint groove amplitudes.
+    """
+    if not checkpoints:
+        return 1.0
+
+    # Before first checkpoint
+    if time_s <= checkpoints[0].time_s:
+        return checkpoints[0].groove_amplitude
+
+    # After last checkpoint
+    if time_s >= checkpoints[-1].time_s:
+        return checkpoints[-1].groove_amplitude
+
+    # Find surrounding checkpoints
+    for i in range(len(checkpoints) - 1):
+        if checkpoints[i].time_s <= time_s <= checkpoints[i + 1].time_s:
+            t0 = checkpoints[i].time_s
+            t1 = checkpoints[i + 1].time_s
+            a0 = checkpoints[i].groove_amplitude
+            a1 = checkpoints[i + 1].groove_amplitude
+
+            if t1 == t0:
+                return a0
+
+            ratio = (time_s - t0) / (t1 - t0)
+            return a0 + ratio * (a1 - a0)
+
+    return 1.0
 
 
 def compile_trajectory(
@@ -44,6 +83,9 @@ def compile_trajectory(
     """
     Compile choreography into a trajectory.
 
+    Groove is automatically applied when BPM is specified in the choreography.
+    Per-checkpoint groove amplitude comes from groove-x<number> suffix in schedule.
+
     Args:
         choreography: Loaded choreography with poses and checkpoints
         interval_ms: Time between waypoints (only used when interpolation != "none")
@@ -53,31 +95,30 @@ def compile_trajectory(
     Returns:
         Trajectory with waypoints
     """
+    groove = create_groove_config(choreography.bpm, choreography.groove_phase)
+    easing_type = EasingType(easing)
+
     if not choreography.checkpoints:
         return Trajectory(
             waypoints=[],
             interval_ms=0,
             interpolation=interpolation,
-            easing=EasingType(easing),
+            easing=easing_type,
             total_duration_s=0.0,
+            groove_bpm=choreography.bpm,
         )
 
-    easing_type = EasingType(easing)
-
-    times: List[float] = []
-    positions: List[List[float]] = []
-    for cp in choreography.checkpoints:
-        pose = choreography.poses[cp.pose_name]
-        times.append(cp.time_s)
-        positions.append(pose.joints_deg.copy())
-
-    start_time = times[0]
+    times = [cp.time_s for cp in choreography.checkpoints]
+    positions = [choreography.poses[cp.pose_name].joints_deg.copy() for cp in choreography.checkpoints]
     end_time = times[-1]
 
     if interpolation == "none":
         waypoints = [
-            Waypoint(time_s=t, joints_deg=pos.copy())
-            for t, pos in zip(times, positions)
+            Waypoint(
+                time_s=cp.time_s,
+                joints_deg=apply_groove_to_joints(pos, cp.time_s, groove, cp.groove_amplitude),
+            )
+            for cp, pos in zip(choreography.checkpoints, positions)
         ]
         return Trajectory(
             waypoints=waypoints,
@@ -85,20 +126,25 @@ def compile_trajectory(
             interpolation=interpolation,
             easing=easing_type,
             total_duration_s=end_time,
+            groove_bpm=choreography.bpm,
         )
 
     interpolator = create_interpolator(times, positions, interpolation)
     interval_s = interval_ms / 1000.0
 
     waypoints: List[Waypoint] = []
-    current_time = start_time
+    current_time = times[0]
     while current_time <= end_time:
         joints = interpolator.interpolate(current_time, easing_type)
+        amp_scale = _interpolate_groove_amplitude(current_time, choreography.checkpoints)
+        joints = apply_groove_to_joints(joints, current_time, groove, amp_scale)
         waypoints.append(Waypoint(time_s=current_time, joints_deg=joints))
         current_time += interval_s
 
     if waypoints and abs(waypoints[-1].time_s - end_time) > 0.001:
         joints = interpolator.interpolate(end_time, easing_type)
+        amp_scale = _interpolate_groove_amplitude(end_time, choreography.checkpoints)
+        joints = apply_groove_to_joints(joints, end_time, groove, amp_scale)
         waypoints.append(Waypoint(time_s=end_time, joints_deg=joints))
 
     return Trajectory(
@@ -107,6 +153,7 @@ def compile_trajectory(
         interpolation=interpolation,
         easing=easing_type,
         total_duration_s=end_time,
+        groove_bpm=choreography.bpm,
     )
 
 
@@ -119,6 +166,9 @@ def compile_dual_trajectory(
 ) -> Dict[str, Trajectory]:
     """
     Compile dual arm choreographies into synchronized trajectories.
+
+    Groove is automatically applied when BPM is specified in each choreography.
+    Per-checkpoint groove amplitude comes from groove-x<number> suffix in schedule.
 
     Args:
         choreographies: Dict mapping label to choreography (e.g., {"he": ..., "she": ...})
@@ -138,11 +188,7 @@ def compile_dual_trajectory(
         }
 
     # For interpolation modes, use global time range for synchronization
-    all_times = [
-        cp.time_s
-        for choreo in choreographies.values()
-        for cp in choreo.checkpoints
-    ]
+    all_times = [cp.time_s for choreo in choreographies.values() for cp in choreo.checkpoints]
 
     if not all_times:
         return {
@@ -152,8 +198,9 @@ def compile_dual_trajectory(
                 interpolation=interpolation,
                 easing=easing_type,
                 total_duration_s=0.0,
+                groove_bpm=choreo.bpm,
             )
-            for label in choreographies
+            for label, choreo in choreographies.items()
         }
 
     global_start = min(all_times)
@@ -162,6 +209,8 @@ def compile_dual_trajectory(
 
     result: Dict[str, Trajectory] = {}
     for label, choreo in choreographies.items():
+        groove = create_groove_config(choreo.bpm, choreo.groove_phase)
+
         if not choreo.checkpoints:
             result[label] = Trajectory(
                 waypoints=[],
@@ -169,6 +218,7 @@ def compile_dual_trajectory(
                 interpolation=interpolation,
                 easing=easing_type,
                 total_duration_s=0.0,
+                groove_bpm=choreo.bpm,
             )
             continue
 
@@ -181,12 +231,16 @@ def compile_dual_trajectory(
         while current_time <= global_end:
             clamped_time = max(times[0], min(times[-1], current_time))
             joints = interpolator.interpolate(clamped_time, easing_type)
+            amp_scale = _interpolate_groove_amplitude(clamped_time, choreo.checkpoints)
+            joints = apply_groove_to_joints(joints, current_time, groove, amp_scale)
             waypoints.append(Waypoint(time_s=current_time, joints_deg=joints))
             current_time += interval_s
 
         if waypoints and abs(waypoints[-1].time_s - global_end) > 0.001:
             clamped_time = max(times[0], min(times[-1], global_end))
             joints = interpolator.interpolate(clamped_time, easing_type)
+            amp_scale = _interpolate_groove_amplitude(clamped_time, choreo.checkpoints)
+            joints = apply_groove_to_joints(joints, global_end, groove, amp_scale)
             waypoints.append(Waypoint(time_s=global_end, joints_deg=joints))
 
         result[label] = Trajectory(
@@ -195,6 +249,7 @@ def compile_dual_trajectory(
             interpolation=interpolation,
             easing=easing_type,
             total_duration_s=global_end,
+            groove_bpm=choreo.bpm,
         )
 
     return result

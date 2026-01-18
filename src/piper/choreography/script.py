@@ -11,7 +11,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 JOINT_ORDER = ["J1", "J2", "J3", "J4", "J5", "J6"]
 
@@ -35,8 +35,14 @@ JOINT_LIMITS_DEG = {
     "J6": (-120.0, 120.0),  # URDF: -2.0944 to 2.0944 rad
 }
 
-# Pattern for simplified schedule: "MM:SS.mmm - pose_name"
-CHECKPOINT_RE = re.compile(r"(\d{1,2}):(\d{2})\.(\d{3})\s*[-–]\s*(\w+)")
+# Pattern for simplified schedule: "MM:SS.mmm - pose_name" with optional "groove-x<number>"
+CHECKPOINT_RE = re.compile(r"(\d{1,2}):(\d{2})\.(\d{3})\s*[-–]\s*(\w+)(?:\s+groove-x([\d.]+))?")
+
+# Pattern for BPM directive: "# BPM: 120" or "# BPM: 120.5"
+BPM_RE = re.compile(r"#\s*BPM:\s*([\d.]+)")
+
+# Pattern for groove phase directive: "# Groove-phase: 0.1"
+GROOVE_PHASE_RE = re.compile(r"#\s*Groove-phase:\s*([\d.]+)")
 
 
 @dataclass
@@ -51,6 +57,7 @@ class Checkpoint:
     """A point in time when the arm should arrive at a pose."""
     time_s: float  # Arrival time in seconds
     pose_name: str
+    groove_amplitude: float = 1.0  # Groove amplitude multiplier (groove-x<number>)
 
 
 @dataclass
@@ -59,6 +66,8 @@ class Choreography:
     poses: Dict[str, Pose]
     checkpoints: List[Checkpoint]
     warnings: List[str] = field(default_factory=list)
+    bpm: Optional[float] = None
+    groove_phase: float = 0.0  # Phase offset in seconds for audio sync
 
 
 def load_poses(path: Path) -> Dict[str, Pose]:
@@ -85,23 +94,43 @@ def load_poses(path: Path) -> Dict[str, Pose]:
     return poses
 
 
-def parse_schedule(path: Path) -> List[Checkpoint]:
+def parse_schedule(path: Path) -> Tuple[List[Checkpoint], Optional[float], float]:
     """
     Parse a simplified schedule markdown file.
 
     Format (one checkpoint per line):
+        # BPM: 120
+        # Groove-phase: 0.1
         00:00.000 - stand
-        00:06.500 - left_down
-        00:10.250 - look_left
+        00:06.500 - left_down groove-x2
+        00:10.250 - look_left groove-x0.5
 
     Each line specifies when the arm should ARRIVE at that pose.
     Milliseconds are mandatory (exactly 3 digits).
+    BPM directive is optional and enables groove modulation.
+    Groove-phase sets audio sync offset in seconds.
+    groove-x<number> suffix multiplies groove amplitude for that checkpoint.
+
+    Returns:
+        Tuple of (checkpoints, bpm, groove_phase).
     """
     checkpoints: List[Checkpoint] = []
+    bpm: Optional[float] = None
+    groove_phase: float = 0.0
 
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if not line or line.startswith("#"):
+        if not line:
+            continue
+
+        if line.startswith("#"):
+            bpm_match = BPM_RE.match(line)
+            if bpm_match:
+                bpm = float(bpm_match.group(1))
+            else:
+                phase_match = GROOVE_PHASE_RE.match(line)
+                if phase_match:
+                    groove_phase = float(phase_match.group(1))
             continue
 
         match = CHECKPOINT_RE.match(line)
@@ -110,10 +139,16 @@ def parse_schedule(path: Path) -> List[Checkpoint]:
             seconds = int(match.group(2))
             ms = int(match.group(3))
             pose_name = match.group(4)
+            groove_amp_str = match.group(5)
             time_s = minutes * 60 + seconds + ms / 1000.0
-            checkpoints.append(Checkpoint(time_s=time_s, pose_name=pose_name))
+            groove_amplitude = float(groove_amp_str) if groove_amp_str else 1.0
+            checkpoints.append(Checkpoint(
+                time_s=time_s,
+                pose_name=pose_name,
+                groove_amplitude=groove_amplitude,
+            ))
 
-    return checkpoints
+    return checkpoints, bpm, groove_phase
 
 
 def load_choreography(
@@ -130,7 +165,7 @@ def load_choreography(
     schedule_path = Path(schedule_path)
 
     poses = load_poses(poses_path)
-    checkpoints = parse_schedule(schedule_path)
+    checkpoints, bpm, groove_phase = parse_schedule(schedule_path)
     warnings: List[str] = []
 
     # Validate all referenced poses exist
@@ -185,4 +220,10 @@ def load_choreography(
                     f"{joint}: {speed:.1f} deg/s > {max_speed} deg/s"
                 )
 
-    return Choreography(poses=poses, checkpoints=checkpoints, warnings=warnings)
+    return Choreography(
+        poses=poses,
+        checkpoints=checkpoints,
+        warnings=warnings,
+        bpm=bpm,
+        groove_phase=groove_phase,
+    )

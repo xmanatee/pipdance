@@ -168,12 +168,15 @@ def run_single(args, poses_path: Path, verbose: bool):
 
     if verbose:
         print(f"[Choreography] Loaded {len(choreo.poses)} poses, {len(choreo.checkpoints)} checkpoints")
+        if choreo.bpm:
+            groove_info = f", phase={choreo.groove_phase}s" if choreo.groove_phase else ""
+            print(f"[Choreography] BPM: {choreo.bpm}{groove_info}")
         if choreo.warnings:
             print("[Choreography] Warnings:")
             for w in choreo.warnings:
                 print(f"  - {w}")
 
-    # Compile to trajectory (always)
+    # Compile to trajectory (groove auto-applied when BPM is set)
     trajectory = compile_trajectory(
         choreo,
         interval_ms=args.interval,
@@ -189,12 +192,16 @@ def run_single(args, poses_path: Path, verbose: bool):
     if args.dry_run:
         print("\n[Dry Run] Schedule:")
         for cp in choreo.checkpoints:
-            print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
+            groove_suffix = f" groove-x{cp.groove_amplitude}" if cp.groove_amplitude != 1.0 else ""
+            print(f"  {format_timestamp(cp)} -> {cp.pose_name}{groove_suffix}")
         print(f"\n[Dry Run] Would execute {len(trajectory)} waypoints")
         print(f"  Interpolation: {args.interpolation}")
         if args.interpolation != "none":
             print(f"  Interval: {args.interval}ms")
             print(f"  Easing: {args.easing}")
+        if choreo.bpm:
+            phase_info = f", phase={choreo.groove_phase}s" if choreo.groove_phase else ""
+            print(f"  Groove: {choreo.bpm} BPM{phase_info}")
         print("\n[Dry Run] Validation complete")
         return
 
@@ -227,10 +234,11 @@ def run_dual(args, poses_path: Path, verbose: bool):
     choreographies = {"he": he_choreo, "she": she_choreo}
 
     if verbose:
-        print(f"[he]  Loaded {len(he_choreo.checkpoints)} checkpoints")
-        print(f"[she] Loaded {len(she_choreo.checkpoints)} checkpoints")
+        for label, choreo in choreographies.items():
+            bpm_info = f" (BPM: {choreo.bpm})" if choreo.bpm else ""
+            print(f"[{label}]  Loaded {len(choreo.checkpoints)} checkpoints{bpm_info}")
 
-    # Compile trajectories (always)
+    # Compile trajectories (groove auto-applied when BPM is set)
     trajectories = compile_dual_trajectory(
         choreographies,
         interval_ms=args.interval,
@@ -247,15 +255,22 @@ def run_dual(args, poses_path: Path, verbose: bool):
     if args.dry_run:
         print("\n[Dry Run] 'he' schedule:")
         for cp in he_choreo.checkpoints:
-            print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
+            groove_suffix = f" groove-x{cp.groove_amplitude}" if cp.groove_amplitude != 1.0 else ""
+            print(f"  {format_timestamp(cp)} -> {cp.pose_name}{groove_suffix}")
 
         print("\n[Dry Run] 'she' schedule:")
         for cp in she_choreo.checkpoints:
-            print(f"  {format_timestamp(cp)} -> {cp.pose_name}")
+            groove_suffix = f" groove-x{cp.groove_amplitude}" if cp.groove_amplitude != 1.0 else ""
+            print(f"  {format_timestamp(cp)} -> {cp.pose_name}{groove_suffix}")
 
         print(f"\n[Dry Run] Would execute trajectories:")
         for label, traj in trajectories.items():
-            print(f"  [{label}] {len(traj)} waypoints")
+            choreo = choreographies[label]
+            groove_status = ""
+            if traj.groove_bpm:
+                phase_info = f", phase={choreo.groove_phase}s" if choreo.groove_phase else ""
+                groove_status = f", groove={traj.groove_bpm} BPM{phase_info}"
+            print(f"  [{label}] {len(traj)} waypoints{groove_status}")
         print(f"  Interpolation: {args.interpolation}")
         if args.interpolation != "none":
             print(f"  Interval: {args.interval}ms")

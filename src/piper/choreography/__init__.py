@@ -47,6 +47,14 @@ from .runner import (
     run_trajectory,
     run_dual_trajectory,
 )
+from .groove import (
+    GrooveConfig,
+    DEFAULT_GROOVE_AMPLITUDES,
+    NULL_GROOVE_AMPLITUDES,
+    create_groove_config,
+    compute_groove_offset,
+    apply_groove_to_joints,
+)
 
 __all__ = [
     # Data structures
@@ -56,6 +64,7 @@ __all__ = [
     "Trajectory",
     "Waypoint",
     "EasingType",
+    "GrooveConfig",
     # Loading/compiling
     "load_choreography",
     "load_poses",
@@ -69,6 +78,12 @@ __all__ = [
     "CubicSplineInterpolator",
     "LinearInterpolator",
     "create_interpolator",
+    # Groove
+    "create_groove_config",
+    "compute_groove_offset",
+    "apply_groove_to_joints",
+    "DEFAULT_GROOVE_AMPLITUDES",
+    "NULL_GROOVE_AMPLITUDES",
     # Execution
     "run_trajectory",
     "run_dual_trajectory",
