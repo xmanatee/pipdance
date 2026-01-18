@@ -1,12 +1,20 @@
 {
+  "_joint_reference": {
+    "J1": "Base rotation: + = rotate LEFT, - = rotate RIGHT",
+    "J2": "Shoulder: + = upper arm tilts FORWARD/DOWN, - = upper arm tilts BACKWARD/UP",
+    "J3": "Elbow: + = forearm folds IN, - = forearm extends OUT",
+    "J4": "Forearm rotation: + = rotate LEFT, - = rotate RIGHT",
+    "J5": "Wrist tilt: + = gripper tilts DOWN, - = gripper tilts UP",
+    "J6": "Gripper rotation: + = rotate one way, - = rotate other way"
+  },
   "scenes": [
     {
       "name": "stand",
       "intended_look": "Arm upright, tall - gripper pointing UP",
       "joint_positions": {
         "J1": 0,
-        "J2": 50,
-        "J3": -130,
+        "J2": 90,
+        "J3": -180,
         "J4": 0,
         "J5": 0,
         "J6": 0
@@ -20,7 +28,7 @@
         "J2": 70,
         "J3": -60,
         "J4": 0,
-        "J5": 10,
+        "J5": -10,
         "J6": 0
       }
     },
@@ -29,70 +37,46 @@
       "intended_look": "Reaching toward viewer - gripper forward and slightly up",
       "joint_positions": {
         "J1": 0,
-        "J2": 60,
-        "J3": -45,
+        "J2": 110,
+        "J3": -100,
         "J4": 0,
-        "J5": 20,
+        "J5": -30,
         "J6": 0
       }
     },
     {
       "name": "look_from_left",
-      "intended_look": "Turned left, looking from left side - gripper up",
+      "intended_look": "Turned left, looking from left side - gripper forward/down",
       "joint_positions": {
-        "J1": -45,
-        "J2": 55,
-        "J3": -110,
-        "J4": -20,
-        "J5": 0,
-        "J6": 20
-      }
-    },
-    {
-      "name": "forward_bit",
-      "intended_look": "Slightly forward lean - gripper forward",
-      "joint_positions": {
-        "J1": 0,
-        "J2": 75,
-        "J3": -55,
-        "J4": 0,
-        "J5": 5,
-        "J6": 0
-      }
-    },
-    {
-      "name": "forward_curve",
-      "intended_look": "Curved forward bow - forming an arch",
-      "joint_positions": {
-        "J1": 0,
+        "J1": 45,
         "J2": 90,
-        "J3": -90,
-        "J4": 15,
-        "J5": -10,
-        "J6": 0
-      }
-    },
-    {
-      "name": "forward_up",
-      "intended_look": "Forward with head tilted up - gripper forward looking up",
-      "joint_positions": {
-        "J1": 0,
-        "J2": 65,
-        "J3": -50,
-        "J4": 0,
-        "J5": 40,
-        "J6": 0
+        "J3": -135,
+        "J4": -45,
+        "J5": 60,
+        "J6": 20
       }
     },
     {
       "name": "left_down",
       "intended_look": "Looking down and to the left",
       "joint_positions": {
-        "J1": -40,
-        "J2": 55,
-        "J3": -120,
-        "J4": -15,
-        "J5": -25,
+        "J1": 0,
+        "J2": 70,
+        "J3": -60,
+        "J4": 45,
+        "J5": 45,
+        "J6": 0
+      }
+    },
+    {
+      "name": "right_down",
+      "intended_look": "Looking down and to the right",
+      "joint_positions": {
+        "J1": 0,
+        "J2": 70,
+        "J3": -60,
+        "J4": -45,
+        "J5": 45,
         "J6": 0
       }
     },
@@ -101,34 +85,34 @@
       "intended_look": "Low position looking up - gripper low, tilted up",
       "joint_positions": {
         "J1": 0,
-        "J2": 35,
-        "J3": -140,
+        "J2": 50,
+        "J3": -40,
         "J4": 0,
-        "J5": 30,
+        "J5": -30,
         "J6": 0
       }
     },
     {
       "name": "look_from_right",
-      "intended_look": "Turned right, looking from right side - gripper up",
+      "intended_look": "Turned right, looking from right side - gripper forward/down",
       "joint_positions": {
-        "J1": 45,
-        "J2": 55,
-        "J3": -110,
-        "J4": 20,
-        "J5": 0,
-        "J6": -20
+        "J1": -45,
+        "J2": 90,
+        "J3": -135,
+        "J4": 45,
+        "J5": 60,
+        "J6": 20
       }
     },
     {
       "name": "look_right",
       "intended_look": "Looking right - tall posture turned right",
       "joint_positions": {
-        "J1": 60,
-        "J2": 50,
-        "J3": -125,
+        "J1": -60,
+        "J2": 85,
+        "J3": -165,
         "J4": 10,
-        "J5": 0,
+        "J5": 80,
         "J6": -15
       }
     },
@@ -136,11 +120,11 @@
       "name": "look_right_one",
       "intended_look": "Looking slightly right - subtle turn",
       "joint_positions": {
-        "J1": 30,
-        "J2": 50,
-        "J3": -125,
+        "J1": -30,
+        "J2": 85,
+        "J3": -165,
         "J4": 5,
-        "J5": 0,
+        "J5": 80,
         "J6": -10
       }
     },
@@ -148,12 +132,48 @@
       "name": "look_right_two",
       "intended_look": "Looking more right - stronger turn",
       "joint_positions": {
-        "J1": 75,
-        "J2": 50,
-        "J3": -125,
+        "J1": -75,
+        "J2": 85,
+        "J3": -165,
         "J4": 15,
-        "J5": 0,
+        "J5": 80,
         "J6": -20
+      }
+    },
+    {
+      "name": "look_left",
+      "intended_look": "Looking left - tall posture turned left",
+      "joint_positions": {
+        "J1": 60,
+        "J2": 85,
+        "J3": -165,
+        "J4": -10,
+        "J5": 80,
+        "J6": 15
+      }
+    },
+    {
+      "name": "look_left_one",
+      "intended_look": "Looking slightly left - subtle turn",
+      "joint_positions": {
+        "J1": 30,
+        "J2": 85,
+        "J3": -165,
+        "J4": -5,
+        "J5": 80,
+        "J6": 10
+      }
+    },
+    {
+      "name": "look_left_two",
+      "intended_look": "Looking more left - stronger turn",
+      "joint_positions": {
+        "J1": 75,
+        "J2": 85,
+        "J3": -165,
+        "J4": -15,
+        "J5": 80,
+        "J6": 20
       }
     },
     {
@@ -162,7 +182,7 @@
       "joint_positions": {
         "J1": 0,
         "J2": 15,
-        "J3": -150,
+        "J3": 0,
         "J4": 0,
         "J5": 0,
         "J6": 0
@@ -174,9 +194,9 @@
       "joint_positions": {
         "J1": 0,
         "J2": 30,
-        "J3": -145,
-        "J4": 10,
-        "J5": -35,
+        "J3": -25,
+        "J4": 0,
+        "J5": 35,
         "J6": 0
       }
     },
@@ -185,8 +205,8 @@
       "intended_look": "Standing variant 1 - tall, slight variation",
       "joint_positions": {
         "J1": 0,
-        "J2": 45,
-        "J3": -125,
+        "J2": 88,
+        "J3": -175,
         "J4": 0,
         "J5": 5,
         "J6": 0
@@ -197,8 +217,8 @@
       "intended_look": "Standing variant 2 - tall with slight lean",
       "joint_positions": {
         "J1": 0,
-        "J2": 55,
-        "J3": -115,
+        "J2": 95,
+        "J3": -170,
         "J4": 10,
         "J5": 10,
         "J6": 0

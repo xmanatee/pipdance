@@ -1,0 +1,2 @@
+- initial synchronization with music waves
+- BPM beatings
