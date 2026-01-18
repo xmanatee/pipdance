@@ -64,7 +64,6 @@ class SimulationPiperArm(PiperArmBase):
             entity=self._entity,
             target_fps=60.0,
         )
-        self._stepper.start()
 
         urdf_name = (self._urdf_path or DEFAULT_URDF).name
         viewer_status = "with viewer" if self._show_viewer else "headless"
@@ -74,10 +73,7 @@ class SimulationPiperArm(PiperArmBase):
         self._log(f"Physics: dt={dt_ms:.2f}ms, {steps} steps/frame for real-time")
 
     def _disconnect(self) -> None:
-        if self._stepper:
-            self._stepper.stop()
-            self._stepper = None
-
+        self._stepper = None
         self._entity = None
         self._scene = None
 

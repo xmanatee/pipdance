@@ -25,7 +25,7 @@ from .script import (
 )
 from .runner import (
     run_choreography,
-    run_choreography_parallel,
+    run_dual_choreography,
     load_and_run,
 )
 
@@ -40,7 +40,7 @@ __all__ = [
     "parse_schedule",
     # Execution functions
     "run_choreography",
-    "run_choreography_parallel",
+    "run_dual_choreography",
     "load_and_run",
     # Constants
     "JOINT_ORDER",

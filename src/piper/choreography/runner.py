@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import math
 import time
-import threading
 from typing import TYPE_CHECKING, Dict, Optional
 
 from .script import Choreography, load_choreography
@@ -48,11 +47,10 @@ def run_choreography(
 
     start_time = time.time()
 
-    for i, cp in enumerate(checkpoints):
+    for cp in checkpoints:
         pose = poses[cp.pose_name]
         joints_rad = [math.radians(d) for d in pose.joints_deg]
 
-        # Calculate wait time until this checkpoint
         elapsed = time.time() - start_time
         wait_until = cp.time_s - elapsed
 
@@ -72,7 +70,7 @@ def run_choreography(
         print(f"[Choreography] Completed in {total:.1f}s")
 
 
-def run_choreography_parallel(
+def run_dual_choreography(
     arms: Dict[str, PiperArmBase],
     choreographies: Dict[str, Choreography],
     *,
@@ -80,7 +78,11 @@ def run_choreography_parallel(
     verbose: bool = True,
 ) -> None:
     """
-    Run multiple choreographies in parallel on multiple arms.
+    Run dual arm choreography using merged timeline.
+
+    Works with both hardware and simulation adapters. Events from all
+    choreographies are merged and executed in time order, using the
+    adapter's wait() method between events.
 
     Args:
         arms: Dict mapping label to connected arm (e.g., {"he": arm1, "she": arm2})
@@ -94,37 +96,49 @@ def run_choreography_parallel(
             f"Arms: {set(arms.keys())}, Choreographies: {set(choreographies.keys())}"
         )
 
-    threads = []
-    errors: Dict[str, Exception] = {}
+    events = []
+    for label, choreo in choreographies.items():
+        poses = choreo.poses
+        for cp in choreo.checkpoints:
+            pose = poses[cp.pose_name]
+            joints_rad = [math.radians(d) for d in pose.joints_deg]
+            events.append((cp.time_s, label, cp.pose_name, joints_rad))
 
-    def run_one(label: str):
-        try:
-            arm = arms[label]
-            choreo = choreographies[label]
+    events.sort(key=lambda e: e[0])
 
+    if not events:
+        if verbose:
+            print("[Choreography] No events to execute")
+        return
+
+    if verbose:
+        for label, choreo in choreographies.items():
+            if choreo.warnings:
+                print(f"[{label}] Warnings:")
+                for w in choreo.warnings:
+                    print(f"  - {w}")
+
+    first_arm = next(iter(arms.values()))
+    start_time = time.time()
+
+    for time_s, label, pose_name, joints_rad in events:
+        elapsed = time.time() - start_time
+        wait_time = time_s - elapsed
+
+        if wait_time > 0:
             if verbose:
-                print(f"[{label}] Starting choreography ({len(choreo.checkpoints)} checkpoints)")
+                print(f"[{time_s:6.1f}s] Waiting {wait_time:.1f}s...")
+            first_arm.wait(wait_time)
 
-            run_choreography(
-                arm,
-                choreo,
-                dry_run=dry_run,
-                verbose=verbose,
-            )
-        except Exception as e:
-            errors[label] = e
+        if verbose:
+            print(f"[{time_s:6.1f}s] [{label}] -> {pose_name}")
 
-    for label in arms:
-        t = threading.Thread(target=run_one, args=(label,), name=f"choreo-{label}")
-        threads.append(t)
-        t.start()
+        if not dry_run:
+            arms[label].move_joints(joints_rad, wait=0)
 
-    for t in threads:
-        t.join()
-
-    if errors:
-        error_msgs = [f"{label}: {e}" for label, e in errors.items()]
-        raise RuntimeError(f"Choreography errors:\n" + "\n".join(error_msgs))
+    if verbose:
+        total = time.time() - start_time
+        print(f"[Choreography] Completed in {total:.1f}s")
 
 
 def load_and_run(

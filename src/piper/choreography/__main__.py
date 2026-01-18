@@ -11,7 +11,8 @@ Dual arm:
 
 Simulation (no hardware required):
     python -m piper.choreography --poses poses.json --schedule he.md --simulation
-    python -m piper.choreography --poses poses.json --schedule he.md --simulation --no-viewer
+    python -m piper.choreography --poses poses.json \\
+        --he he.md --she she.md --simulation
 
 Dry run (validate without moving):
     python -m piper.choreography --poses poses.json --schedule he.md --dry-run
@@ -20,7 +21,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import load_choreography, run_choreography, run_choreography_parallel
+from . import load_choreography, run_choreography, run_dual_choreography
 from .script import Checkpoint
 
 
@@ -100,7 +101,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate mode
     single_mode = args.schedule is not None
     dual_mode = args.he is not None or args.she is not None
 
@@ -172,7 +172,7 @@ def run_single(args, poses_path: Path, verbose: bool):
 
 
 def run_dual(args, poses_path: Path, verbose: bool):
-    """Run dual arm choreography in parallel."""
+    """Run dual arm choreography using merged timeline."""
     he_path = Path(args.he)
     she_path = Path(args.she)
 
@@ -200,27 +200,35 @@ def run_dual(args, poses_path: Path, verbose: bool):
         print("\n[Dry Run] Validation complete")
         return
 
+    choreographies = {"he": he_choreo, "she": she_choreo}
+
     if args.simulation:
-        print("Error: --simulation is not yet supported for dual arm mode", file=sys.stderr)
-        sys.exit(1)
+        from ..simulation.dual import create_dual_simulation_arms
 
-    # Import here to avoid import errors when dry-running on Mac
-    from .. import create_arm
+        show_viewer = not args.no_viewer
+        print(f"[Choreography] Starting dual simulation (viewer={'on' if show_viewer else 'off'})...")
 
-    print(f"[Choreography] Connecting to arms...")
-    print(f"  he:  {args.he_can}")
-    print(f"  she: {args.she_can}")
-
-    # Note: For dual arms, we need to specify adapter type explicitly
-    # since auto-detection might not work with multiple adapters
-    with create_arm(adapter="standard", can_port=args.he_can) as he_arm:
-        with create_arm(adapter="standard", can_port=args.she_can) as she_arm:
-            run_choreography_parallel(
+        he_arm, she_arm = create_dual_simulation_arms(show_viewer=show_viewer, verbose=verbose)
+        with he_arm, she_arm:
+            run_dual_choreography(
                 arms={"he": he_arm, "she": she_arm},
-                choreographies={"he": he_choreo, "she": she_choreo},
-                dry_run=False,
+                choreographies=choreographies,
                 verbose=verbose,
             )
+    else:
+        from .. import create_arm
+
+        print(f"[Choreography] Connecting to arms...")
+        print(f"  he:  {args.he_can}")
+        print(f"  she: {args.she_can}")
+
+        with create_arm(adapter="standard", can_port=args.he_can) as he_arm:
+            with create_arm(adapter="standard", can_port=args.she_can) as she_arm:
+                run_dual_choreography(
+                    arms={"he": he_arm, "she": she_arm},
+                    choreographies=choreographies,
+                    verbose=verbose,
+                )
 
 
 if __name__ == "__main__":

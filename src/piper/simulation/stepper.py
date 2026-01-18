@@ -15,11 +15,9 @@ class SimulationStepper:
     """
     Steps the Genesis simulation with real-time pacing.
 
-    Unlike a background thread approach, this stepper runs in the main thread
-    because Genesis viewer can only be updated from the thread that created it.
-
-    Handles the mismatch between physics dt and display rate by stepping
-    multiple times per frame to maintain real-time correspondence.
+    Runs in the main thread because Genesis viewer requires main-thread updates.
+    Steps multiple physics substeps per display frame to maintain real-time
+    correspondence between wall-clock time and simulation time.
     """
 
     def __init__(
@@ -32,18 +30,12 @@ class SimulationStepper:
         self._entity = entity
         self._target_fps = target_fps
         self._frame_time = 1.0 / target_fps
-
-        # Get physics timestep from scene
         self._physics_dt = float(scene.dt)
-
-        # Calculate how many physics steps per display frame for real-time
-        # If dt=1/240 and target_fps=60, need 4 steps per frame
         self._steps_per_frame = max(1, int(round(self._frame_time / self._physics_dt)))
 
         self._arm_joints = [0, 1, 2, 3, 4, 5]
         self._gripper_joints = [6, 7]
 
-        # Cache whether gripper exists (check once at init)
         num_dofs = len(entity.get_dofs_position())
         self._has_gripper = num_dofs > max(self._gripper_joints)
 
@@ -59,14 +51,6 @@ class SimulationStepper:
     def steps_per_frame(self) -> int:
         """Number of physics steps per display frame."""
         return self._steps_per_frame
-
-    def start(self) -> None:
-        """No-op for compatibility (main-thread stepping)."""
-        pass
-
-    def stop(self) -> None:
-        """No-op for compatibility (main-thread stepping)."""
-        pass
 
     def set_targets(
         self,
