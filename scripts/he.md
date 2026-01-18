@@ -1,6 +1,7 @@
 # He - Dance Schedule
 # Format: MM:SS.mmm - pose_name (arrival time)
 
+00:00.000 - sit_look_forward
 00:07.129 - stand
 00:10.867 - stand
 00:17.113 - look_right
@@ -24,4 +25,5 @@
 01:40.867 - sit_look_forward
 01:43.143 - kiss
 01:46.812 - sit_look_forward
-01:51.572 - sleep
+01:51.572 - sit_sad
+01:57.000 - sleep
