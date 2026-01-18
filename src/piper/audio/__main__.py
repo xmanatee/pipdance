@@ -26,7 +26,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .analysis import analyze_audio, AnalysisConfig
+from .analysis import analyze_audio, AnalysisConfig, DetectionMode
 from .formats import format_summary, to_json, to_schedule_template
 
 
@@ -88,19 +88,59 @@ def main():
         help="Directory to cache downloaded videos (default: video/)",
     )
 
+    parser.add_argument(
+        "--mode",
+        choices=["spectral", "onsets", "beats", "ensemble", "combined"],
+        default="combined",
+        help="Detection mode (default: combined)",
+    )
+
+    parser.add_argument(
+        "--snap-to-beats",
+        action="store_true",
+        help="Snap timestamps to nearest beat",
+    )
+
+    parser.add_argument(
+        "--beat-tolerance",
+        type=float,
+        default=0.15,
+        metavar="SECONDS",
+        help="Max distance to snap to beat (default: 0.15)",
+    )
+
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default="0.4,0.3,0.3",
+        metavar="S,C,O",
+        help="Ensemble weights: spectral,contrast,onset (default: 0.4,0.3,0.3)",
+    )
+
     args = parser.parse_args()
 
     input_path = resolve_input(args.input, args.cache_dir, args.audio_only)
 
+    weights = [float(w) for w in args.weights.split(",")]
+    if len(weights) != 3:
+        print("Error: --weights must have 3 comma-separated values", file=sys.stderr)
+        sys.exit(1)
+
     config = AnalysisConfig(
         min_gap_s=args.min_gap,
         percentile_threshold=args.threshold,
+        mode=DetectionMode(args.mode),
+        snap_to_beats=args.snap_to_beats,
+        beat_snap_tolerance_s=args.beat_tolerance,
+        weight_spectral=weights[0],
+        weight_contrast=weights[1],
+        weight_onset=weights[2],
     )
 
     try:
-        print(f"[Audio] Analyzing {input_path.name}...", file=sys.stderr)
+        print(f"[Audio] Analyzing {input_path.name} (mode: {args.mode})...", file=sys.stderr)
         analysis = analyze_audio(str(input_path), config)
-        print(f"[Audio] Found BPM: {analysis.bpm}, {len(analysis.timestamps)} change points", file=sys.stderr)
+        print(f"[Audio] Found BPM: {analysis.bpm}, {len(analysis.timestamps)} timestamps", file=sys.stderr)
     except ImportError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
