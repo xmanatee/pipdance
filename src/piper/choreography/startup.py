@@ -52,7 +52,7 @@ def create_startup_waypoints(
         for t, j6 in zip(key_times, key_j6_positions):
             joints = starting_joints.copy()
             joints[J6_INDEX] = j6
-            waypoints.append(Waypoint(time_s=t, joints_deg=joints))
+            waypoints.append(Waypoint(time_s=t, joints_deg=joints, gripper=0.0))
         return waypoints
 
     from .interpolation import create_interpolator, EasingType
@@ -70,12 +70,12 @@ def create_startup_waypoints(
     current_time = 0.0
     while current_time < STARTUP_DURATION_S:
         joints = interpolator.interpolate(current_time, EasingType.NONE)
-        waypoints.append(Waypoint(time_s=current_time, joints_deg=joints))
+        waypoints.append(Waypoint(time_s=current_time, joints_deg=joints, gripper=0.0))
         current_time += interval_s
 
     final_joints = starting_joints.copy()
     if not waypoints or abs(waypoints[-1].time_s - STARTUP_DURATION_S) > 0.001:
-        waypoints.append(Waypoint(time_s=STARTUP_DURATION_S, joints_deg=final_joints))
+        waypoints.append(Waypoint(time_s=STARTUP_DURATION_S, joints_deg=final_joints, gripper=0.0))
 
     return waypoints
 

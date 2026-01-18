@@ -7,6 +7,7 @@ When interpolation is "linear" or "cubic", waypoints are placed at fixed interva
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 
@@ -14,12 +15,49 @@ from .script import Choreography, Checkpoint
 from .interpolation import EasingType, create_interpolator
 from .groove import apply_groove_to_joints, create_groove_config
 
+# Speaking modulation constants (0=closed, 1=open)
+SPEAKING_MIN = 0.05  # 5% open
+SPEAKING_MAX = 0.50  # 50% open
+SPEAKING_CENTER = (SPEAKING_MIN + SPEAKING_MAX) / 2  # 0.2
+SPEAKING_AMPLITUDE = (SPEAKING_MAX - SPEAKING_MIN) / 2  # 0.15
+
+# Target frequency for speech oscillation (reduced 3x from original 2.0 Hz)
+MIN_SPEECH_HZ = 0.67
+
+
+def _get_speech_multiplier(bpm: float) -> int:
+    """Find smallest BPM multiple that gives frequency >= 2 Hz."""
+    if bpm <= 0:
+        return 1
+    base_hz = bpm / 60.0
+    multiplier = 1
+    while base_hz * multiplier < MIN_SPEECH_HZ:
+        multiplier *= 2
+    return multiplier
+
+
+def _compute_gripper(speaking: bool, time_s: float, bpm: Optional[float], phase_offset_s: float = 0.0) -> float:
+    """
+    Compute gripper position based on speaking state.
+
+    Returns 0.0 (closed) when not speaking, or oscillating value when speaking.
+    """
+    if not speaking:
+        return 0.0
+    if bpm is None or bpm <= 0:
+        return SPEAKING_CENTER
+    multiplier = _get_speech_multiplier(bpm)
+    frequency_hz = (bpm / 60.0) * multiplier
+    phase = 2.0 * math.pi * frequency_hz * (time_s + phase_offset_s)
+    return SPEAKING_CENTER + SPEAKING_AMPLITUDE * math.sin(phase)
+
 
 @dataclass
 class Waypoint:
     """A single point in the trajectory timeline."""
     time_s: float
     joints_deg: List[float]
+    gripper: float = 0.0  # Gripper position: 0.0=closed, 1.0=open
 
 
 @dataclass
@@ -73,6 +111,40 @@ def _interpolate_groove_amplitude(
     return 1.0
 
 
+def _interpolate_speaking(
+    time_s: float,
+    checkpoints: List[Checkpoint],
+) -> bool:
+    """
+    Determine if speaking is active at a given time.
+
+    At exact checkpoint times, uses that checkpoint's speaking value.
+    Between checkpoints, speaking is active only if both neighbors have speaking.
+    """
+    if not checkpoints:
+        return False
+
+    # Check if we're at an exact checkpoint time
+    for cp in checkpoints:
+        if abs(time_s - cp.time_s) < 0.001:
+            return cp.speaking
+
+    # Before first checkpoint
+    if time_s < checkpoints[0].time_s:
+        return False
+
+    # After last checkpoint
+    if time_s > checkpoints[-1].time_s:
+        return checkpoints[-1].speaking
+
+    # Between checkpoints: speaking only if both neighbors have speaking
+    for i in range(len(checkpoints) - 1):
+        if checkpoints[i].time_s < time_s < checkpoints[i + 1].time_s:
+            return checkpoints[i].speaking and checkpoints[i + 1].speaking
+
+    return False
+
+
 def compile_trajectory(
     choreography: Choreography,
     *,
@@ -117,6 +189,7 @@ def compile_trajectory(
             Waypoint(
                 time_s=cp.time_s,
                 joints_deg=apply_groove_to_joints(pos, cp.time_s, groove, cp.groove_amplitude),
+                gripper=_compute_gripper(cp.speaking, cp.time_s, choreography.bpm, choreography.groove_phase),
             )
             for cp, pos in zip(choreography.checkpoints, positions)
         ]
@@ -138,14 +211,18 @@ def compile_trajectory(
         joints = interpolator.interpolate(current_time, easing_type)
         amp_scale = _interpolate_groove_amplitude(current_time, choreography.checkpoints)
         joints = apply_groove_to_joints(joints, current_time, groove, amp_scale)
-        waypoints.append(Waypoint(time_s=current_time, joints_deg=joints))
+        speaking = _interpolate_speaking(current_time, choreography.checkpoints)
+        gripper = _compute_gripper(speaking, current_time, choreography.bpm, choreography.groove_phase)
+        waypoints.append(Waypoint(time_s=current_time, joints_deg=joints, gripper=gripper))
         current_time += interval_s
 
     if waypoints and abs(waypoints[-1].time_s - end_time) > 0.001:
         joints = interpolator.interpolate(end_time, easing_type)
         amp_scale = _interpolate_groove_amplitude(end_time, choreography.checkpoints)
         joints = apply_groove_to_joints(joints, end_time, groove, amp_scale)
-        waypoints.append(Waypoint(time_s=end_time, joints_deg=joints))
+        speaking = _interpolate_speaking(end_time, choreography.checkpoints)
+        gripper = _compute_gripper(speaking, end_time, choreography.bpm, choreography.groove_phase)
+        waypoints.append(Waypoint(time_s=end_time, joints_deg=joints, gripper=gripper))
 
     return Trajectory(
         waypoints=waypoints,
@@ -233,7 +310,9 @@ def compile_dual_trajectory(
             joints = interpolator.interpolate(clamped_time, easing_type)
             amp_scale = _interpolate_groove_amplitude(clamped_time, choreo.checkpoints)
             joints = apply_groove_to_joints(joints, current_time, groove, amp_scale)
-            waypoints.append(Waypoint(time_s=current_time, joints_deg=joints))
+            speaking = _interpolate_speaking(clamped_time, choreo.checkpoints)
+            gripper = _compute_gripper(speaking, current_time, choreo.bpm, choreo.groove_phase)
+            waypoints.append(Waypoint(time_s=current_time, joints_deg=joints, gripper=gripper))
             current_time += interval_s
 
         if waypoints and abs(waypoints[-1].time_s - global_end) > 0.001:
@@ -241,7 +320,9 @@ def compile_dual_trajectory(
             joints = interpolator.interpolate(clamped_time, easing_type)
             amp_scale = _interpolate_groove_amplitude(clamped_time, choreo.checkpoints)
             joints = apply_groove_to_joints(joints, global_end, groove, amp_scale)
-            waypoints.append(Waypoint(time_s=global_end, joints_deg=joints))
+            speaking = _interpolate_speaking(clamped_time, choreo.checkpoints)
+            gripper = _compute_gripper(speaking, global_end, choreo.bpm, choreo.groove_phase)
+            waypoints.append(Waypoint(time_s=global_end, joints_deg=joints, gripper=gripper))
 
         result[label] = Trajectory(
             waypoints=waypoints,
@@ -267,7 +348,7 @@ def shift_trajectory_times(trajectory: Trajectory, offset_s: float) -> Trajector
         New trajectory with shifted times
     """
     shifted_waypoints = [
-        Waypoint(time_s=wp.time_s + offset_s, joints_deg=wp.joints_deg.copy())
+        Waypoint(time_s=wp.time_s + offset_s, joints_deg=wp.joints_deg.copy(), gripper=wp.gripper)
         for wp in trajectory.waypoints
     ]
 

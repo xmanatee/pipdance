@@ -59,6 +59,7 @@ def run_trajectory(
         if not dry_run:
             joints_rad = [math.radians(d) for d in wp.joints_deg]
             arm.move_joints(joints_rad, wait=0)
+            arm._send_gripper_command(wp.gripper)
             if wait_time > 0:
                 arm.wait(wait_time)
         elif wait_time > 0:
@@ -156,6 +157,7 @@ def run_dual_trajectory(
                 if not dry_run:
                     joints_rad = [math.radians(d) for d in wp.joints_deg]
                     arms[label].move_joints(joints_rad, wait=0)
+                    arms[label]._send_gripper_command(wp.gripper)
                 current_waypoints[label] = next(iterators[label], None)
 
         if not dry_run and wait_time > 0:

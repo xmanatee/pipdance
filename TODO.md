@@ -2,5 +2,7 @@
 - fix on robot
 - custume
 - fix choreo
+    - add intro
+    - add closing
 - mouth moving
 - choreo generation

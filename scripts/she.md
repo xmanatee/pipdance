@@ -1,5 +1,5 @@
 # She - Dance Schedule
-# BPM: 26
+# BPM: 28.075
 # Groove-phase: 0.2
 
 00:00.000 - sleep

@@ -35,8 +35,8 @@ JOINT_LIMITS_DEG = {
     "J6": (-120.0, 120.0),  # URDF: -2.0944 to 2.0944 rad
 }
 
-# Pattern for simplified schedule: "MM:SS.mmm - pose_name" with optional "groove-x<number>"
-CHECKPOINT_RE = re.compile(r"(\d{1,2}):(\d{2})\.(\d{3})\s*[-–]\s*(\w+)(?:\s+groove-x([\d.]+))?")
+# Pattern for simplified schedule: "MM:SS.mmm - pose_name" with optional "groove-x<number>" and "speaking"
+CHECKPOINT_RE = re.compile(r"(\d{1,2}):(\d{2})\.(\d{3})\s*[-–]\s*(\w+)(?:\s+groove-x([\d.]+))?(?:\s+(speaking))?")
 
 # Pattern for BPM directive: "# BPM: 120" or "# BPM: 120.5"
 BPM_RE = re.compile(r"#\s*BPM:\s*([\d.]+)")
@@ -58,6 +58,7 @@ class Checkpoint:
     time_s: float  # Arrival time in seconds
     pose_name: str
     groove_amplitude: float = 1.0  # Groove amplitude multiplier (groove-x<number>)
+    speaking: bool = False  # Whether gripper should oscillate (simulating speech)
 
 
 @dataclass
@@ -140,12 +141,15 @@ def parse_schedule(path: Path) -> Tuple[List[Checkpoint], Optional[float], float
             ms = int(match.group(3))
             pose_name = match.group(4)
             groove_amp_str = match.group(5)
+            speaking_str = match.group(6)
             time_s = minutes * 60 + seconds + ms / 1000.0
             groove_amplitude = float(groove_amp_str) if groove_amp_str else 1.0
+            speaking = speaking_str is not None
             checkpoints.append(Checkpoint(
                 time_s=time_s,
                 pose_name=pose_name,
                 groove_amplitude=groove_amplitude,
+                speaking=speaking,
             ))
 
     return checkpoints, bpm, groove_phase
