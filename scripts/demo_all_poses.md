@@ -3,7 +3,7 @@
 # Shows each available pose for 5 seconds
 
 00:00.000 - stand
-00:05.000 - interest_forward
+00:05.000 - sit_look_forward
 00:10.000 - kiss
 00:15.000 - look_from_left
 00:25.000 - left_down
