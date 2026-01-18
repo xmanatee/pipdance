@@ -3,6 +3,7 @@
 # Groove-phase: 0.2
 
 00:00.000 - sleep
+00:06.000 - sleep
 00:07.129 - sleep
 00:10.867 - sleep
 00:17.113 - sleep

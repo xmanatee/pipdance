@@ -1,2 +1,5 @@
-- initial synchronization with music waves
-- BPM beatings
+- connect to robot
+- fix on robot
+- mouth moving
+- fix choreo
+- custume

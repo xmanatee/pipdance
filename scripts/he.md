@@ -3,6 +3,7 @@
 # Groove-phase: 0.2
 
 00:00.000 - sit_look_forward
+00:06.000 - sit_sad
 00:07.129 - stand
 00:10.867 - stand
 00:17.113 - look_right
