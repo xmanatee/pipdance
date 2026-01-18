@@ -33,6 +33,7 @@ from .trajectory import (
     Waypoint,
     compile_trajectory,
     compile_dual_trajectory,
+    shift_trajectory_times,
 )
 from .interpolation import (
     EasingType,
@@ -55,6 +56,13 @@ from .groove import (
     compute_groove_offset,
     apply_groove_to_joints,
 )
+from .startup import (
+    STARTUP_DURATION_S,
+    STARTUP_SETTLE_S,
+    STARTUP_J6_OFFSET,
+    create_startup_waypoints,
+    prepend_startup_sequence,
+)
 
 __all__ = [
     # Data structures
@@ -71,6 +79,7 @@ __all__ = [
     "parse_schedule",
     "compile_trajectory",
     "compile_dual_trajectory",
+    "shift_trajectory_times",
     # Interpolation
     "linear_interpolate",
     "apply_easing",
@@ -87,6 +96,12 @@ __all__ = [
     # Execution
     "run_trajectory",
     "run_dual_trajectory",
+    # Startup
+    "STARTUP_DURATION_S",
+    "STARTUP_SETTLE_S",
+    "STARTUP_J6_OFFSET",
+    "create_startup_waypoints",
+    "prepend_startup_sequence",
     # Constants
     "JOINT_ORDER",
     "JOINT_MAX_SPEED_DEG",

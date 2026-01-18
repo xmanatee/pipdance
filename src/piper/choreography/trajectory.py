@@ -253,3 +253,29 @@ def compile_dual_trajectory(
         )
 
     return result
+
+
+def shift_trajectory_times(trajectory: Trajectory, offset_s: float) -> Trajectory:
+    """
+    Shift all waypoint times by offset.
+
+    Args:
+        trajectory: The trajectory to shift
+        offset_s: Time offset in seconds to add to all waypoints
+
+    Returns:
+        New trajectory with shifted times
+    """
+    shifted_waypoints = [
+        Waypoint(time_s=wp.time_s + offset_s, joints_deg=wp.joints_deg.copy())
+        for wp in trajectory.waypoints
+    ]
+
+    return Trajectory(
+        waypoints=shifted_waypoints,
+        interval_ms=trajectory.interval_ms,
+        interpolation=trajectory.interpolation,
+        easing=trajectory.easing,
+        total_duration_s=trajectory.total_duration_s + offset_s,
+        groove_bpm=trajectory.groove_bpm,
+    )

@@ -19,6 +19,7 @@ def run_trajectory(
     *,
     dry_run: bool = False,
     verbose: bool = True,
+    startup_duration_s: float = 0.0,
 ) -> None:
     """
     Execute a compiled trajectory on a single arm.
@@ -30,6 +31,7 @@ def run_trajectory(
         trajectory: Compiled trajectory with waypoints
         dry_run: If True, print actions without moving arm
         verbose: Print status messages
+        startup_duration_s: If > 0, print countdown during startup phase
     """
     waypoints = trajectory.waypoints
 
@@ -48,6 +50,8 @@ def run_trajectory(
     start_time = time.perf_counter()
 
     last_print_time = 0.0
+    countdown_printed = set()
+
     for wp in waypoints:
         elapsed = time.perf_counter() - start_time
         wait_time = wp.time_s - elapsed
@@ -60,7 +64,18 @@ def run_trajectory(
         elif wait_time > 0:
             time.sleep(wait_time)
 
-        if verbose and (wp.time_s - last_print_time >= 1.0 or wp == waypoints[-1]):
+        if verbose and startup_duration_s > 0 and wp.time_s <= startup_duration_s:
+            for countdown_val in range(int(startup_duration_s), 0, -1):
+                threshold = startup_duration_s - countdown_val
+                if wp.time_s >= threshold and countdown_val not in countdown_printed:
+                    print(f"[Startup] {countdown_val}...")
+                    countdown_printed.add(countdown_val)
+            if wp.time_s >= startup_duration_s and 0 not in countdown_printed:
+                print("[Startup] GO!")
+                countdown_printed.add(0)
+
+        in_startup = startup_duration_s > 0 and wp.time_s <= startup_duration_s
+        if verbose and not in_startup and (wp.time_s - last_print_time >= 1.0 or wp == waypoints[-1]):
             actual_elapsed = time.perf_counter() - start_time
             print(f"[{wp.time_s:6.1f}s] Waypoint (elapsed: {actual_elapsed:.2f}s)")
             last_print_time = wp.time_s
@@ -76,6 +91,7 @@ def run_dual_trajectory(
     *,
     dry_run: bool = False,
     verbose: bool = True,
+    startup_duration_s: float = 0.0,
 ) -> None:
     """
     Execute dual arm trajectories with synchronized timing.
@@ -88,6 +104,7 @@ def run_dual_trajectory(
         trajectories: Dict mapping label to compiled trajectory
         dry_run: If True, print actions without moving arms
         verbose: Print status messages
+        startup_duration_s: If > 0, print countdown during startup phase
     """
     if set(arms.keys()) != set(trajectories.keys()):
         raise ValueError(
@@ -122,6 +139,7 @@ def run_dual_trajectory(
     }
 
     last_print_time = 0.0
+    countdown_printed = set()
 
     while any(wp is not None for wp in current_waypoints.values()):
         next_time = min(
@@ -145,7 +163,18 @@ def run_dual_trajectory(
         elif dry_run and wait_time > 0:
             time.sleep(wait_time)
 
-        if verbose and (next_time - last_print_time >= 1.0):
+        if verbose and startup_duration_s > 0 and next_time <= startup_duration_s:
+            for countdown_val in range(int(startup_duration_s), 0, -1):
+                threshold = startup_duration_s - countdown_val
+                if next_time >= threshold and countdown_val not in countdown_printed:
+                    print(f"[Startup] {countdown_val}...")
+                    countdown_printed.add(countdown_val)
+            if next_time >= startup_duration_s and 0 not in countdown_printed:
+                print("[Startup] GO!")
+                countdown_printed.add(0)
+
+        in_startup = startup_duration_s > 0 and next_time <= startup_duration_s
+        if verbose and not in_startup and (next_time - last_print_time >= 1.0):
             actual_elapsed = time.perf_counter() - start_time
             print(f"[{next_time:6.1f}s] Sync point (elapsed: {actual_elapsed:.2f}s)")
             last_print_time = next_time

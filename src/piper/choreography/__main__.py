@@ -25,6 +25,7 @@ from . import load_choreography
 from .script import Checkpoint
 from .trajectory import compile_trajectory, compile_dual_trajectory
 from .runner import run_trajectory, run_dual_trajectory
+from .startup import prepend_startup_sequence, STARTUP_DURATION_S, STARTUP_J6_OFFSET
 
 
 def format_timestamp(cp: Checkpoint) -> str:
@@ -99,6 +100,11 @@ def main():
         "--quiet",
         action="store_true",
         help="Reduce output verbosity",
+    )
+    parser.add_argument(
+        "--startup",
+        action="store_true",
+        help="Enable 7-second startup sequence (gripper wiggle) before choreography",
     )
 
     # Trajectory options
@@ -183,6 +189,15 @@ def run_single(args, poses_path: Path, verbose: bool):
         interpolation=args.interpolation,
         easing=args.easing,
     )
+
+    startup_duration = 0.0
+    if args.startup:
+        first_pose = choreo.poses[choreo.checkpoints[0].pose_name]
+        trajectory = prepend_startup_sequence(trajectory, first_pose.joints_deg)
+        startup_duration = STARTUP_DURATION_S
+        if verbose:
+            print(f"[Startup] Enabled ({STARTUP_DURATION_S:.0f}s gripper wiggle)")
+
     if verbose:
         if args.interpolation == "none":
             print(f"[Trajectory] {len(trajectory)} waypoints (checkpoint mode)")
@@ -190,6 +205,14 @@ def run_single(args, poses_path: Path, verbose: bool):
             print(f"[Trajectory] {len(trajectory)} waypoints at {args.interval}ms intervals ({args.interpolation})")
 
     if args.dry_run:
+        if args.startup:
+            print("\n[Dry Run] Startup sequence:")
+            print(f"  00:00.000 -> (starting pose)")
+            print(f"  00:03.000 -> (settled)")
+            print(f"  00:04.000 -> J6 +{int(STARTUP_J6_OFFSET)}° (left)")
+            print(f"  00:05.000 -> J6 (center)")
+            print(f"  00:06.000 -> J6 -{int(STARTUP_J6_OFFSET)}° (right)")
+            print(f"  00:07.000 -> J6 (center) - GO!")
         print("\n[Dry Run] Schedule:")
         for cp in choreo.checkpoints:
             groove_suffix = f" groove-x{cp.groove_amplitude}" if cp.groove_amplitude != 1.0 else ""
@@ -202,6 +225,8 @@ def run_single(args, poses_path: Path, verbose: bool):
         if choreo.bpm:
             phase_info = f", phase={choreo.groove_phase}s" if choreo.groove_phase else ""
             print(f"  Groove: {choreo.bpm} BPM{phase_info}")
+        if args.startup:
+            print(f"  Startup: {STARTUP_DURATION_S:.0f}s")
         print("\n[Dry Run] Validation complete")
         return
 
@@ -212,11 +237,11 @@ def run_single(args, poses_path: Path, verbose: bool):
         show_viewer = not args.no_viewer
         print(f"[Choreography] Starting simulation (viewer={'on' if show_viewer else 'off'})...")
         with create_arm(adapter="simulation", show_viewer=show_viewer) as arm:
-            run_trajectory(arm, trajectory, dry_run=False, verbose=verbose)
+            run_trajectory(arm, trajectory, dry_run=False, verbose=verbose, startup_duration_s=startup_duration)
     else:
         print(f"[Choreography] Connecting to arm on {args.can}...")
         with create_arm(can_port=args.can) as arm:
-            run_trajectory(arm, trajectory, dry_run=False, verbose=verbose)
+            run_trajectory(arm, trajectory, dry_run=False, verbose=verbose, startup_duration_s=startup_duration)
 
 
 def run_dual(args, poses_path: Path, verbose: bool):
@@ -245,6 +270,16 @@ def run_dual(args, poses_path: Path, verbose: bool):
         interpolation=args.interpolation,
         easing=args.easing,
     )
+
+    startup_duration = 0.0
+    if args.startup:
+        for label, choreo in choreographies.items():
+            first_pose = choreo.poses[choreo.checkpoints[0].pose_name]
+            trajectories[label] = prepend_startup_sequence(trajectories[label], first_pose.joints_deg)
+        startup_duration = STARTUP_DURATION_S
+        if verbose:
+            print(f"[Startup] Enabled ({STARTUP_DURATION_S:.0f}s gripper wiggle)")
+
     if verbose:
         for label, traj in trajectories.items():
             if args.interpolation == "none":
@@ -253,6 +288,15 @@ def run_dual(args, poses_path: Path, verbose: bool):
                 print(f"[{label}] {len(traj)} waypoints at {args.interval}ms intervals ({args.interpolation})")
 
     if args.dry_run:
+        if args.startup:
+            print("\n[Dry Run] Startup sequence (both arms):")
+            print(f"  00:00.000 -> (starting pose)")
+            print(f"  00:03.000 -> (settled)")
+            print(f"  00:04.000 -> J6 +{int(STARTUP_J6_OFFSET)}° (left)")
+            print(f"  00:05.000 -> J6 (center)")
+            print(f"  00:06.000 -> J6 -{int(STARTUP_J6_OFFSET)}° (right)")
+            print(f"  00:07.000 -> J6 (center) - GO!")
+
         print("\n[Dry Run] 'he' schedule:")
         for cp in he_choreo.checkpoints:
             groove_suffix = f" groove-x{cp.groove_amplitude}" if cp.groove_amplitude != 1.0 else ""
@@ -275,6 +319,8 @@ def run_dual(args, poses_path: Path, verbose: bool):
         if args.interpolation != "none":
             print(f"  Interval: {args.interval}ms")
             print(f"  Easing: {args.easing}")
+        if args.startup:
+            print(f"  Startup: {STARTUP_DURATION_S:.0f}s")
 
         print("\n[Dry Run] Validation complete")
         return
@@ -288,7 +334,7 @@ def run_dual(args, poses_path: Path, verbose: bool):
         he_arm, she_arm = create_dual_simulation_arms(show_viewer=show_viewer, verbose=verbose)
         with he_arm, she_arm:
             arms = {"he": he_arm, "she": she_arm}
-            run_dual_trajectory(arms, trajectories, verbose=verbose)
+            run_dual_trajectory(arms, trajectories, verbose=verbose, startup_duration_s=startup_duration)
     else:
         from .. import create_arm
 
@@ -299,7 +345,7 @@ def run_dual(args, poses_path: Path, verbose: bool):
         with create_arm(adapter="standard", can_port=args.he_can) as he_arm:
             with create_arm(adapter="standard", can_port=args.she_can) as she_arm:
                 arms = {"he": he_arm, "she": she_arm}
-                run_dual_trajectory(arms, trajectories, verbose=verbose)
+                run_dual_trajectory(arms, trajectories, verbose=verbose, startup_duration_s=startup_duration)
 
 
 if __name__ == "__main__":
