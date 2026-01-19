@@ -7,7 +7,20 @@ for smooth motion between choreography checkpoints.
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Tuple
+
+
+def _find_segment(times: list[float], t: float, n_points: int) -> tuple[int, float]:
+    """Find segment index and local interpolation factor for time t."""
+    if t <= times[0]:
+        return 0, 0.0
+    if t >= times[-1]:
+        return n_points - 2, 1.0
+    for i in range(n_points - 1):
+        if times[i] <= t < times[i + 1]:
+            duration = times[i + 1] - times[i]
+            local_t = (t - times[i]) / duration if duration > 0 else 0.0
+            return i, local_t
+    return n_points - 2, 1.0
 
 
 class EasingType(Enum):
@@ -67,11 +80,11 @@ def apply_easing(t: float, easing: EasingType) -> float:
 
 
 def interpolate_joints(
-    start: List[float],
-    end: List[float],
+    start: list[float],
+    end: list[float],
     t: float,
     easing: EasingType = EasingType.NONE,
-) -> List[float]:
+) -> list[float]:
     """
     Interpolate between two joint position arrays.
 
@@ -127,7 +140,7 @@ class CubicSplineInterpolator:
     neighboring points for tangent calculation.
     """
 
-    def __init__(self, times: List[float], positions: List[List[float]]):
+    def __init__(self, times: list[float], positions: list[list[float]]):
         """
         Initialize spline interpolator.
 
@@ -145,28 +158,10 @@ class CubicSplineInterpolator:
         self.n_joints = len(positions[0])
         self.n_points = len(times)
 
-    def _find_segment(self, t: float) -> Tuple[int, float]:
-        """
-        Find which segment contains time t and local interpolation factor.
+    def _find_segment(self, t: float) -> tuple[int, float]:
+        return _find_segment(self.times, t, self.n_points)
 
-        Returns:
-            (segment_index, local_t) where segment_index is into self.times
-            and local_t is in [0, 1]
-        """
-        if t <= self.times[0]:
-            return 0, 0.0
-        if t >= self.times[-1]:
-            return self.n_points - 2, 1.0
-
-        for i in range(self.n_points - 1):
-            if self.times[i] <= t < self.times[i + 1]:
-                duration = self.times[i + 1] - self.times[i]
-                local_t = (t - self.times[i]) / duration if duration > 0 else 0.0
-                return i, local_t
-
-        return self.n_points - 2, 1.0
-
-    def interpolate(self, t: float, easing: EasingType = EasingType.NONE) -> List[float]:
+    def interpolate(self, t: float, easing: EasingType = EasingType.NONE) -> list[float]:
         """
         Interpolate joint positions at time t.
 
@@ -201,8 +196,8 @@ class CubicSplineInterpolator:
 
 
 def create_interpolator(
-    times: List[float],
-    positions: List[List[float]],
+    times: list[float],
+    positions: list[list[float]],
     interpolation: str = "linear",
 ) -> "Interpolator":
     """
@@ -225,7 +220,7 @@ def create_interpolator(
 class LinearInterpolator:
     """Linear interpolator between waypoints."""
 
-    def __init__(self, times: List[float], positions: List[List[float]]):
+    def __init__(self, times: list[float], positions: list[list[float]]):
         if len(times) != len(positions):
             raise ValueError("Times and positions must have same length")
         if len(times) < 2:
@@ -235,22 +230,10 @@ class LinearInterpolator:
         self.positions = positions
         self.n_points = len(times)
 
-    def _find_segment(self, t: float) -> Tuple[int, float]:
-        """Find segment and local t for time t."""
-        if t <= self.times[0]:
-            return 0, 0.0
-        if t >= self.times[-1]:
-            return self.n_points - 2, 1.0
+    def _find_segment(self, t: float) -> tuple[int, float]:
+        return _find_segment(self.times, t, self.n_points)
 
-        for i in range(self.n_points - 1):
-            if self.times[i] <= t < self.times[i + 1]:
-                duration = self.times[i + 1] - self.times[i]
-                local_t = (t - self.times[i]) / duration if duration > 0 else 0.0
-                return i, local_t
-
-        return self.n_points - 2, 1.0
-
-    def interpolate(self, t: float, easing: EasingType = EasingType.NONE) -> List[float]:
+    def interpolate(self, t: float, easing: EasingType = EasingType.NONE) -> list[float]:
         """Interpolate joint positions at time t."""
         seg_idx, local_t = self._find_segment(t)
         local_t = apply_easing(local_t, easing)

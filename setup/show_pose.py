@@ -3,11 +3,12 @@
 import sys
 import math
 import json
-sys.path.insert(0, '/home/pi3/pipdance/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from piper import create_arm
 
-POSES_FILE = '/home/pi3/pipdance/scripts/poses.json'
+POSES_FILE = str(Path(__file__).resolve().parent.parent / "scripts" / "poses.json")
 
 def load_poses():
     with open(POSES_FILE) as f:
@@ -46,15 +47,10 @@ def main():
     print(f"Intended: {intended}")
     print(f"Joints: J1={joints_deg[0]:.0f} J2={joints_deg[1]:.0f} J3={joints_deg[2]:.0f} J4={joints_deg[3]:.0f} J5={joints_deg[4]:.0f} J6={joints_deg[5]:.0f}")
 
-    arm = create_arm(verbose=False)
-    arm.connect()
-
-    joints_rad = [math.radians(d) for d in joints_deg]
-    arm.move_joints(joints_rad, wait=0)
-
-    print(f"\n>>> Now showing: {pose_name}")
-
-    arm.disconnect()
+    with create_arm(verbose=False) as arm:
+        joints_rad = [math.radians(d) for d in joints_deg]
+        arm.move_joints(joints_rad, wait=0)
+        print(f"\n>>> Now showing: {pose_name}")
 
 if __name__ == "__main__":
     main()

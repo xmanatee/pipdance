@@ -197,6 +197,14 @@ def load_choreography(
                     f"outside [{lower:.1f}°, {upper:.1f}°]"
                 )
 
+    # Validate timestamps are in chronological order
+    for i in range(1, len(checkpoints)):
+        if checkpoints[i].time_s < checkpoints[i - 1].time_s:
+            raise ValueError(
+                f"Out-of-order timestamp: checkpoint at {checkpoints[i].time_s}s "
+                f"comes after {checkpoints[i - 1].time_s}s"
+            )
+
     # Check speed limits between consecutive checkpoints
     for i in range(1, len(checkpoints)):
         prev = checkpoints[i - 1]

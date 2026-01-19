@@ -45,20 +45,13 @@ def detect_adapter() -> Optional[str]:
         'waveshare' if Waveshare USB-CAN-A is found
         None if no adapter found
     """
-    try:
-        from .adapters.standard import find_socketcan_port
-        if find_socketcan_port():
-            return "standard"
-    except ImportError:
-        pass
+    from .adapters.standard import find_socketcan_port
+    from .can import find_waveshare_port
 
-    try:
-        from .can import find_waveshare_port
-        if find_waveshare_port():
-            return "waveshare"
-    except ImportError:
-        pass
-
+    if find_socketcan_port():
+        return "standard"
+    if find_waveshare_port():
+        return "waveshare"
     return None
 
 

@@ -8,7 +8,8 @@ import sys
 import argparse
 
 # Add src to path for imports
-sys.path.insert(0, '/home/pi3/pipdance/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from piper import PiperArm, detect_adapter
 from piper.adapters.standard import find_socketcan_port

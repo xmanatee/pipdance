@@ -15,7 +15,8 @@ SDK gripper demo pattern:
 import sys
 import time
 import can
-sys.path.insert(0, '/home/pi3/pipdance/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from piper.adapters.waveshare import WavesharePiperArm
 

@@ -43,7 +43,18 @@ Mac ──ethernet──► Raspberry Pi ──USB──► USB-to-CAN ──►
 
 "No route to host" → Enable terminal in Privacy & Security → Local Network
 
-## Commands
+## Quick Commands
+
+Source the commands file: `source commands.sh`
+
+| Command | Description |
+|---------|-------------|
+| `piper-sim` | Run dual-arm simulation locally |
+| `piper-deploy` | Copy files to Pi |
+| `piper-run` | Deploy and run on Pi |
+| `piper-dry` | Validate choreography |
+
+## Manual Commands
 
 ### Deploy to Pi (from Mac)
 ```bash
@@ -128,11 +139,12 @@ Timestamps use `MM:SS.mmm` format (milliseconds are mandatory, exactly 3 digits)
 ### Python API
 ```python
 from piper import create_arm
-from piper.choreography import load_choreography, run_choreography
+from piper.choreography import load_choreography, compile_trajectory, run_trajectory
 
 choreo = load_choreography("scripts/poses.json", "scripts/he.md")
+trajectory = compile_trajectory(choreo)
 with create_arm() as arm:
-    run_choreography(arm, choreo)
+    run_trajectory(arm, trajectory)
 ```
 
 See [README.md](./README.md) for hardware details and full API reference.
@@ -178,3 +190,4 @@ python -m piper.choreography --poses scripts/poses.json \
 | Only one CAN interface appears | Unplug/replug second adapter, check `dmesg` |
 | Arms out of sync | Ensure separate CAN buses, try `--no-parallel` to diagnose |
 | High timing drift | Disable background services, use Ethernet instead of WiFi |
+| Jerky movement (Waveshare) | Try lower msg_delay (2-5ms): `WavesharePiperArm(msg_delay=0.002)` or smaller interpolation interval: `--interval 100` |

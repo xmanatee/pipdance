@@ -6,8 +6,9 @@ Tests both arms can connect, read state, and make small movements.
 """
 import sys
 import time
+from pathlib import Path
 
-sys.path.insert(0, '/home/pi3/pipdance/src')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from piper import create_arm
 from piper.can import find_all_waveshare_ports
@@ -60,11 +61,9 @@ def test_dual_waveshare():
     try:
         print("      --- HE ARM ---")
         he_arm.print_state()
-        he_j2_initial = he_arm._joint_positions[1] if he_arm._joint_positions else None
 
         print("      --- SHE ARM ---")
         she_arm.print_state()
-        she_j2_initial = she_arm._joint_positions[1] if she_arm._joint_positions else None
     except Exception as e:
         print(f"      [FAIL] State read: {e}")
         he_arm._disconnect()

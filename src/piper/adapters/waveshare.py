@@ -31,14 +31,17 @@ class WavesharePiperArm(PiperArmBase):
     ARM_MOTOR_ENABLE_ID = 0x471         # Motor enable command
 
     # Default inter-message delay (seconds)
-    # 10ms is conservative; 2-5ms may work for low-latency applications
-    DEFAULT_MSG_DELAY = 0.01
+    # 5ms matches the SDK rhythm; lower values may drop frames on slower systems
+    DEFAULT_MSG_DELAY = 0.005
+    # Default burst duration for streaming mode (seconds)
+    DEFAULT_STREAM_BURST_S = 0.05
 
     def __init__(
         self,
         port: str = "auto",
         verbose: bool = True,
         msg_delay: Optional[float] = None,
+        stream_burst_s: Optional[float] = None,
         can_port: Optional[str] = None,  # Alias for port (compatibility with choreography module)
         exclude_ports: Optional[list[str]] = None,  # Ports to exclude when auto-detecting
     ):
@@ -48,9 +51,11 @@ class WavesharePiperArm(PiperArmBase):
         Args:
             port: Serial port (e.g., '/dev/ttyUSB0') or 'auto' to detect
             verbose: Print status messages
-            msg_delay: Inter-message delay in seconds (default: 0.01)
+            msg_delay: Inter-message delay in seconds (default: 0.005)
                        Lower values (0.002-0.005) improve latency but may
                        cause dropped messages on slower systems.
+            stream_burst_s: Duration in seconds to keep sending commands when
+                            wait=0 (default: 0.05).
             can_port: Alias for port (for compatibility)
             exclude_ports: Ports to skip during auto-detection (for dual-arm setups)
         """
@@ -67,6 +72,13 @@ class WavesharePiperArm(PiperArmBase):
             self.port = port
         self._exclude_ports = exclude_ports or []
         self.msg_delay = msg_delay if msg_delay is not None else self.DEFAULT_MSG_DELAY
+        self.stream_burst_s = (
+            stream_burst_s if stream_burst_s is not None else self.DEFAULT_STREAM_BURST_S
+        )
+        if self.msg_delay <= 0:
+            self.msg_delay = self.DEFAULT_MSG_DELAY
+        if self.stream_burst_s <= 0:
+            self.stream_burst_s = self.DEFAULT_STREAM_BURST_S
         self._bus: Optional[WaveshareBus] = None
         self._joints = [0.0] * 6  # Cached joint positions (radians)
         self._gripper = 0.0       # Cached gripper position
@@ -155,7 +167,7 @@ class WavesharePiperArm(PiperArmBase):
         elif msg.arbitration_id == self.GRIPPER_FEEDBACK_ID:
             if len(msg.data) >= 4:
                 pos = int.from_bytes(msg.data[0:4], 'big', signed=True)
-                self._gripper = pos / 70000.0
+                self._gripper = max(0.0, min(1.0, pos / 70000.0))
             return True
 
         return False
@@ -209,11 +221,11 @@ class WavesharePiperArm(PiperArmBase):
         pos_mdeg = [int(rad2deg(p) * 1000) for p in positions]
 
         if duration <= 0:
-            # Fast mode: continuous burst for trajectory streaming
-            # Piper needs continuous commands - send for ~50ms at 5ms intervals
-            for _ in range(10):
+            # Fast mode: short continuous burst for trajectory streaming
+            iterations = max(1, int(round(self.stream_burst_s / self.msg_delay)))
+            for _ in range(iterations):
                 self._send_command_set(pos_mdeg, speed_pct)
-                time.sleep(0.005)
+                time.sleep(self.msg_delay)
             return
 
         # Blocking mode: continuous commands for duration (for single moves)
@@ -231,7 +243,7 @@ class WavesharePiperArm(PiperArmBase):
         start = time.time()
         while time.time() - start < duration:
             self._send_command_set(pos_mdeg, speed_pct)
-            time.sleep(0.005)  # 5ms interval like SDK
+            time.sleep(self.msg_delay)
 
         stop_flag.set()
         reader_thread.join(timeout=0.5)

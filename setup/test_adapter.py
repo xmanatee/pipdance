@@ -2,7 +2,8 @@
 """Test the WavesharePiperArm adapter with a small movement."""
 import sys
 import math
-sys.path.insert(0, '/home/pi3/pipdance/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from piper.adapters.waveshare import WavesharePiperArm
 

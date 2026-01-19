@@ -38,7 +38,7 @@ Mac ──ethernet──► Raspberry Pi ──USB──► USB-to-CAN ──CAN
 ### 1. Setup Pi (one-time)
 ```bash
 # On Mac, copy files to Pi
-scp -r src/ setup/ examples/ pi3@192.168.2.3:~/pipdance/
+scp -r src/ setup/ examples/ scripts/ pi3@192.168.2.3:~/pipdance/
 
 # On Pi, run setup
 ssh pi3@192.168.2.3
@@ -60,6 +60,17 @@ python setup/test.py --test detect   # Test adapter detection
 python setup/test.py --test connect  # Test arm connection
 python setup/test.py --test move     # Test arm movement
 ```
+
+## Quick Commands
+
+Source the commands file: `source commands.sh`
+
+| Command | Description |
+|---------|-------------|
+| `piper-sim` | Run dual-arm simulation locally |
+| `piper-deploy` | Copy files to Pi |
+| `piper-run` | Deploy and run on Pi |
+| `piper-dry` | Validate choreography |
 
 ## Usage
 
@@ -152,6 +163,7 @@ The `PiperArm()` function auto-detects the adapter type. Standard socketcan is p
 pipdance/
 ├── README.md                   # This file
 ├── CLAUDE.md                   # AI assistant context
+├── commands.sh                 # Shell commands (source this)
 ├── src/piper/                  # Main package
 │   ├── __init__.py            # PiperArm, create_arm, auto-detection
 │   ├── base.py                # ArmState, PiperArmBase, deg2rad/rad2deg

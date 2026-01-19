@@ -3,7 +3,8 @@
 import sys
 import time
 import threading
-sys.path.insert(0, '/home/pi3/pipdance/src')
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import can
 from piper.can import WaveshareBus, find_waveshare_port
