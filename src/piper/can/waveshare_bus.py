@@ -239,11 +239,40 @@ class WaveshareBus(BusABC):
             self._ser.close()
 
 
-def find_waveshare_port() -> Optional[str]:
-    """Find the Waveshare USB-CAN-A adapter serial port."""
+def find_all_waveshare_ports() -> list[str]:
+    """Find all available Waveshare USB-CAN-A adapter serial ports.
+
+    Returns:
+        List of serial port paths that can be opened at 2000000 baud.
+    """
+    found = []
     for pattern in ['/dev/ttyUSB*', '/dev/ttyACM*']:
         ports = sorted(glob.glob(pattern))
         for port in ports:
+            try:
+                ser = serial.Serial(port, 2000000, timeout=0.5)
+                ser.close()
+                found.append(port)
+            except (serial.SerialException, OSError):
+                continue
+    return found
+
+
+def find_waveshare_port(exclude: Optional[list[str]] = None) -> Optional[str]:
+    """Find the first available Waveshare USB-CAN-A adapter serial port.
+
+    Args:
+        exclude: List of ports to skip (for dual-arm setups where one port is already in use)
+
+    Returns:
+        First available serial port path, or None if not found.
+    """
+    exclude_set = set(exclude) if exclude else set()
+    for pattern in ['/dev/ttyUSB*', '/dev/ttyACM*']:
+        ports = sorted(glob.glob(pattern))
+        for port in ports:
+            if port in exclude_set:
+                continue
             try:
                 ser = serial.Serial(port, 2000000, timeout=0.5)
                 ser.close()

@@ -1,6 +1,0 @@
-- connect to robot
-- fix on robot
-- fix choreo
-    - add intro
-    - add closing
-- choreo generation

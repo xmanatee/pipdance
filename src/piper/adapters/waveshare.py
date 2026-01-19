@@ -40,6 +40,7 @@ class WavesharePiperArm(PiperArmBase):
         verbose: bool = True,
         msg_delay: Optional[float] = None,
         can_port: Optional[str] = None,  # Alias for port (compatibility with choreography module)
+        exclude_ports: Optional[list[str]] = None,  # Ports to exclude when auto-detecting
     ):
         """
         Initialize the Waveshare Piper arm adapter.
@@ -51,14 +52,20 @@ class WavesharePiperArm(PiperArmBase):
                        Lower values (0.002-0.005) improve latency but may
                        cause dropped messages on slower systems.
             can_port: Alias for port (for compatibility)
+            exclude_ports: Ports to skip during auto-detection (for dual-arm setups)
         """
         super().__init__(verbose=verbose)
         # can_port is for compatibility with choreography module
-        # If can_port looks like a CAN interface (can0, slcan0), ignore it and use auto-detect
-        if can_port and not can_port.startswith(("can", "slcan")):
+        if can_port:
+            if can_port.startswith(("can", "slcan")):
+                raise ValueError(
+                    f"WavesharePiperArm does not support socketcan interfaces like '{can_port}'. "
+                    f"Use a serial port (e.g., '/dev/ttyUSB0') or 'auto'."
+                )
             self.port = can_port
         else:
             self.port = port
+        self._exclude_ports = exclude_ports or []
         self.msg_delay = msg_delay if msg_delay is not None else self.DEFAULT_MSG_DELAY
         self._bus: Optional[WaveshareBus] = None
         self._joints = [0.0] * 6  # Cached joint positions (radians)
@@ -66,8 +73,13 @@ class WavesharePiperArm(PiperArmBase):
 
     def _connect(self) -> None:
         if self.port == "auto":
-            port = find_waveshare_port()
+            port = find_waveshare_port(exclude=self._exclude_ports)
             if not port:
+                if self._exclude_ports:
+                    raise RuntimeError(
+                        f"No Waveshare USB-CAN-A found (excluding {self._exclude_ports}). "
+                        "Check connections or specify explicit ports."
+                    )
                 raise RuntimeError("No Waveshare USB-CAN-A found. Check connection.")
             self.port = port
 
@@ -90,6 +102,7 @@ class WavesharePiperArm(PiperArmBase):
         self._read_feedback(timeout=0.5)
 
         # Send a few enable + mode commands to prepare the arm
+        # Motor enable: byte0=0x07, byte1=0x02 (enable)
         for _ in range(10):
             self._bus.send(can.Message(
                 arbitration_id=self.ARM_MOTOR_ENABLE_ID,
@@ -160,7 +173,7 @@ class WavesharePiperArm(PiperArmBase):
 
         The Piper arm requires all three command types sent together continuously.
         """
-        # Enable all motors (0x471)
+        # Motor enable: byte0=0x07, byte1=0x02 (enable)
         self._bus.send(can.Message(
             arbitration_id=self.ARM_MOTOR_ENABLE_ID,
             data=bytes([0x07, 0x02, 0, 0, 0, 0, 0, 0]),
@@ -185,17 +198,25 @@ class WavesharePiperArm(PiperArmBase):
                 is_extended_id=False,
             ))
 
-    def _send_joint_command(self, positions: list[float], duration: float = 2.0, speed_pct: int = 30) -> None:
-        """Send joint command continuously until target reached or timeout.
-
-        Uses a background thread to read feedback while sending commands.
+    def _send_joint_command(self, positions: list[float], duration: float = 0.0, speed_pct: int = 50) -> None:
+        """Send joint command to arm.
 
         Args:
             positions: Target joint positions in radians
-            duration: Maximum time to send commands (seconds)
+            duration: Time to send commands (seconds). 0 = single burst (for trajectory streaming)
             speed_pct: Movement speed percentage (1-100)
         """
         pos_mdeg = [int(rad2deg(p) * 1000) for p in positions]
+
+        if duration <= 0:
+            # Fast mode: continuous burst for trajectory streaming
+            # Piper needs continuous commands - send for ~50ms at 5ms intervals
+            for _ in range(10):
+                self._send_command_set(pos_mdeg, speed_pct)
+                time.sleep(0.005)
+            return
+
+        # Blocking mode: continuous commands for duration (for single moves)
         stop_flag = threading.Event()
 
         def feedback_reader():
@@ -215,10 +236,22 @@ class WavesharePiperArm(PiperArmBase):
         stop_flag.set()
         reader_thread.join(timeout=0.5)
 
-    def _send_gripper_command(self, position: float) -> None:
-        # Gripper position: 0-70000 range, big-endian
+    def _send_gripper_command(self, position: float, effort: int = 1000) -> None:
+        """Send gripper control command (CAN ID 0x159).
+
+        Format:
+            Bytes 0-3: Position in 0.001mm (signed int32, big-endian)
+            Bytes 4-5: Effort in 0.001 N·m (unsigned uint16, big-endian, 0-5000)
+            Byte 6: Status code (0x01=enable)
+            Byte 7: Set zero (0x00=normal)
+        """
+        # Position: 0.0-1.0 maps to 0-70000 (0-70mm in 0.001mm units)
         pos = int(position * 70000)
-        data = pos.to_bytes(4, 'big', signed=True) + bytes([0, 0, 0, 0])
+        data = (
+            pos.to_bytes(4, 'big', signed=True)
+            + effort.to_bytes(2, 'big', signed=False)  # Effort is UNSIGNED
+            + bytes([0x01, 0x00])  # status_code=enable, set_zero=normal
+        )
         msg = can.Message(
             arbitration_id=self.GRIPPER_COMMAND_ID,
             data=data,

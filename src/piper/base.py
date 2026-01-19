@@ -63,8 +63,13 @@ class PiperArmBase(ABC):
         """Get current gripper position (0-1)."""
 
     @abstractmethod
-    def _send_joint_command(self, positions: list[float]) -> None:
-        """Send joint position command (radians)."""
+    def _send_joint_command(self, positions: list[float], duration: float = 0.0) -> None:
+        """Send joint position command (radians).
+
+        Args:
+            positions: Target positions in radians
+            duration: How long to send commands. 0 = single burst (streaming mode)
+        """
 
     @abstractmethod
     def _send_gripper_command(self, position: float) -> None:
@@ -92,10 +97,19 @@ class PiperArmBase(ABC):
         )
 
     def move_joints(self, positions: list[float], wait: float = 2.0) -> None:
-        """Move all joints to positions (radians)."""
-        self._send_joint_command(positions)
+        """Move all joints to positions (radians).
+
+        Args:
+            positions: Target joint positions in radians
+            wait: Time to execute movement. 0 = instant (for trajectory streaming),
+                  >0 = send commands for this duration (for manual moves)
+        """
         if wait > 0:
-            time.sleep(wait)
+            # For manual moves: pass duration to keep sending commands
+            self._send_joint_command(positions, duration=wait)
+        else:
+            # For trajectory streaming: fast burst
+            self._send_joint_command(positions)
 
     def move_joint(self, index: int, angle_deg: float, wait: float = 2.0) -> None:
         """Move single joint to angle (degrees)."""

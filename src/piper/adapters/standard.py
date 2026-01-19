@@ -1,19 +1,25 @@
 """
-Standard Piper arm adapter using piper_control library.
+Standard Piper arm adapter using piper_sdk directly.
 
-This adapter uses the official piper_control library which requires
-a socketcan interface (can0 or slcan0).
+Uses the low-level piper_sdk for fast initialization with explicit timeouts.
+Requires a socketcan interface (can0 or slcan0).
 """
+import math
+import time
 from typing import Optional
 
 import can
-from piper_control import piper_interface, piper_init
+from piper_sdk import C_PiperInterface_V2
 
 from ..base import PiperArmBase
 
 
 # Standard CAN ports to check
 CAN_PORTS = ["slcan0", "can0"]
+
+# Timeouts
+ENABLE_TIMEOUT_S = 2.0
+ENABLE_RETRY_INTERVAL_S = 0.01
 
 
 def find_socketcan_port() -> Optional[str]:
@@ -32,7 +38,7 @@ class StandardPiperArm(PiperArmBase):
     """
     Piper arm controller using standard socketcan interface.
 
-    Uses the piper_control library which requires socketcan (can0/slcan0).
+    Uses piper_sdk directly for fast, timeout-controlled initialization.
     """
 
     def __init__(self, can_port: str = "auto", verbose: bool = True):
@@ -45,7 +51,7 @@ class StandardPiperArm(PiperArmBase):
         """
         super().__init__(verbose=verbose)
         self.can_port = can_port
-        self._robot: Optional[piper_interface.PiperInterface] = None
+        self._piper: Optional[C_PiperInterface_V2] = None
 
     def _connect(self) -> None:
         if self.can_port == "auto":
@@ -55,27 +61,71 @@ class StandardPiperArm(PiperArmBase):
             self.can_port = port
 
         self._log(f"Connecting to {self.can_port}...")
-        self._robot = piper_interface.PiperInterface(can_port=self.can_port)
-        piper_init.reset_arm(
-            self._robot,
-            arm_controller=piper_interface.ArmController.POSITION_VELOCITY,
-            move_mode=piper_interface.MoveMode.JOINT,
-        )
-        piper_init.reset_gripper(self._robot)
+        self._piper = C_PiperInterface_V2(self.can_port)
+        self._piper.ConnectPort()
+
+        # Enable arm with timeout
+        self._log("Enabling arm...")
+        start = time.time()
+        enabled = False
+        attempts = 0
+        while time.time() - start < ENABLE_TIMEOUT_S:
+            if self._piper.EnablePiper():
+                enabled = True
+                break
+            attempts += 1
+            time.sleep(ENABLE_RETRY_INTERVAL_S)
+
+        if not enabled:
+            raise RuntimeError(f"Failed to enable arm after {ENABLE_TIMEOUT_S}s ({attempts} attempts)")
+
+        self._log(f"Enabled after {attempts} attempts")
+
+        # Set motion control mode: CAN control, joint mode, 50% speed
+        self._piper.MotionCtrl_2(0x01, 0x01, 50)
+        time.sleep(0.1)  # Brief settle time
+
+        self._log("Ready")
 
     def _disconnect(self) -> None:
-        if self._robot:
-            self._robot.stop()
-            self._robot = None
+        # piper_sdk doesn't have an explicit disconnect, just stop sending
+        self._piper = None
 
     def _get_joints(self) -> list[float]:
-        return list(self._robot.get_joint_positions())
+        """Get joint positions in radians."""
+        joints = self._piper.GetArmJointMsgs()
+        # SDK returns millidegrees, convert to radians
+        return [
+            math.radians(joints.joint_state.joint_1 / 1000.0),
+            math.radians(joints.joint_state.joint_2 / 1000.0),
+            math.radians(joints.joint_state.joint_3 / 1000.0),
+            math.radians(joints.joint_state.joint_4 / 1000.0),
+            math.radians(joints.joint_state.joint_5 / 1000.0),
+            math.radians(joints.joint_state.joint_6 / 1000.0),
+        ]
 
     def _get_gripper(self) -> float:
-        return self._robot.get_gripper_state()
+        """Get gripper position (0-1 range)."""
+        gripper = self._piper.GetArmGripperMsgs()
+        # Convert from SDK units (0.001mm) to 0-1 range (0-70mm)
+        pos_mm = gripper.gripper_state.grippers_angle / 1000.0
+        return max(0.0, min(1.0, pos_mm / 70.0))
 
-    def _send_joint_command(self, positions: list[float]) -> None:
-        self._robot.command_joint_positions(positions)
+    def _send_joint_command(self, positions: list[float], duration: float = 0.0) -> None:
+        """Send joint positions in radians.
+
+        Args:
+            positions: Target positions in radians
+            duration: Ignored (SDK handles timing internally)
+        """
+        # Convert radians to millidegrees for SDK
+        mdeg = [int(math.degrees(p) * 1000) for p in positions]
+        self._piper.JointCtrl(*mdeg)
 
     def _send_gripper_command(self, position: float) -> None:
-        self._robot.command_gripper_position(position)
+        """Send gripper position (0-1 range)."""
+        # Convert 0-1 to SDK units (0.001mm), range 0-70mm = 0-70000
+        pos_um = int(position * 70000)
+        # GripperCtrl(position, effort, mode, set_zero)
+        # mode 0x01 = enable, effort 1000 = 1 N·m
+        self._piper.GripperCtrl(pos_um, 1000, 0x01, 0)

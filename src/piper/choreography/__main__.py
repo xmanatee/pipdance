@@ -9,6 +9,15 @@ Dual arm:
     python -m piper.choreography --poses poses.json \\
         --he he.md --she she.md --he-can can0 --she-can can1
 
+Dual arm with Waveshare adapters:
+    python -m piper.choreography --poses poses.json \\
+        --he he.md --she she.md --adapter waveshare
+    # Auto-assigns /dev/ttyUSB0 and /dev/ttyUSB1
+
+    python -m piper.choreography --poses poses.json \\
+        --he he.md --she she.md --adapter waveshare \\
+        --he-can /dev/ttyUSB0 --she-can /dev/ttyUSB1
+
 Simulation (no hardware required):
     python -m piper.choreography --poses poses.json --schedule he.md --simulation
     python -m piper.choreography --poses poses.json \\
@@ -20,12 +29,101 @@ Dry run (validate without moving):
 import argparse
 import sys
 from pathlib import Path
+from typing import Optional
 
 from . import load_choreography
 from .script import Checkpoint
 from .trajectory import compile_trajectory, compile_dual_trajectory
 from .runner import run_trajectory, run_dual_trajectory
 from .startup import prepend_startup_sequence, STARTUP_DURATION_S, STARTUP_SETTLE_S, STARTUP_J6_OFFSET
+
+
+def is_socketcan_interface(port: str) -> bool:
+    """Check if port looks like a socketcan interface (can0, slcan0, etc.)."""
+    return port.startswith(("can", "slcan"))
+
+
+def resolve_waveshare_ports_for_dual(
+    he_can: str,
+    she_can: str,
+    dry_run: bool = False,
+) -> tuple[str, str, list[str]]:
+    """Resolve ports for dual-arm Waveshare setup.
+
+    Handles auto-detection and validates uniqueness.
+
+    Args:
+        he_can: Port specification for 'he' arm (serial path, 'auto', or socketcan name)
+        she_can: Port specification for 'she' arm (serial path, 'auto', or socketcan name)
+        dry_run: If True, skip port detection and return placeholders
+
+    Returns:
+        Tuple of (he_port, she_port, warnings)
+
+    Raises:
+        ValueError: If ports cannot be resolved or would conflict
+    """
+    from ..can import find_all_waveshare_ports
+
+    warnings: list[str] = []
+
+    if dry_run:
+        he_port = he_can if not is_socketcan_interface(he_can) else "/dev/ttyUSB0"
+        she_port = she_can if not is_socketcan_interface(she_can) else "/dev/ttyUSB1"
+        if is_socketcan_interface(he_can) or is_socketcan_interface(she_can):
+            warnings.append(
+                f"Waveshare ports not detected in dry-run mode. "
+                f"Using placeholders: he={he_port}, she={she_port}"
+            )
+        return he_port, she_port, warnings
+
+    available_ports = find_all_waveshare_ports()
+
+    he_needs_auto = is_socketcan_interface(he_can) or he_can == "auto"
+    she_needs_auto = is_socketcan_interface(she_can) or she_can == "auto"
+
+    if he_needs_auto and she_needs_auto:
+        if len(available_ports) < 2:
+            raise ValueError(
+                f"Dual-arm Waveshare mode requires 2 serial ports, but found {len(available_ports)}: {available_ports}. "
+                "Connect both Waveshare USB-CAN-A adapters and check with: ls /dev/ttyUSB*"
+            )
+        he_port = available_ports[0]
+        she_port = available_ports[1]
+        warnings.append(f"Auto-assigned ports: he={he_port}, she={she_port}")
+    elif he_needs_auto:
+        she_port = she_can
+        exclude = [she_port] if she_port in available_ports else []
+        remaining = [p for p in available_ports if p not in exclude]
+        if not remaining:
+            raise ValueError(
+                f"No Waveshare port available for 'he' arm (she uses {she_port}). "
+                f"Available: {available_ports}"
+            )
+        he_port = remaining[0]
+        warnings.append(f"Auto-assigned he port: {he_port}")
+    elif she_needs_auto:
+        he_port = he_can
+        exclude = [he_port] if he_port in available_ports else []
+        remaining = [p for p in available_ports if p not in exclude]
+        if not remaining:
+            raise ValueError(
+                f"No Waveshare port available for 'she' arm (he uses {he_port}). "
+                f"Available: {available_ports}"
+            )
+        she_port = remaining[0]
+        warnings.append(f"Auto-assigned she port: {she_port}")
+    else:
+        he_port = he_can
+        she_port = she_can
+
+    if he_port == she_port:
+        raise ValueError(
+            f"Both arms would use the same port: {he_port}. "
+            "Specify different ports with --he-can and --she-can."
+        )
+
+    return he_port, she_port, warnings
 
 
 def format_timestamp(cp: Checkpoint) -> str:
@@ -78,6 +176,12 @@ def main():
         "--she-can",
         default="can1",
         help="CAN interface for 'she' arm (default: can1)",
+    )
+    parser.add_argument(
+        "--adapter",
+        choices=["auto", "standard", "waveshare"],
+        default="auto",
+        help="Adapter type for both arms (default: auto-detect)",
     )
 
     # Options
@@ -149,6 +253,28 @@ def main():
     if dual_mode and (args.he is None or args.she is None):
         parser.error("Dual arm mode requires both --he and --she")
 
+    # For non-waveshare adapters, simple string comparison is sufficient
+    if dual_mode and args.adapter not in ("waveshare",) and args.he_can == args.she_can:
+        parser.error(
+            f"Dual arm mode requires different CAN interfaces. "
+            f"Both set to '{args.he_can}'"
+        )
+
+    # For waveshare adapter in dual mode, validate ports early
+    # This handles the case where user specifies --adapter waveshare with default can0/can1
+    waveshare_ports: Optional[tuple[str, str]] = None
+    if dual_mode and args.adapter == "waveshare" and not args.simulation:
+        try:
+            he_port, she_port, port_warnings = resolve_waveshare_ports_for_dual(
+                args.he_can, args.she_can, dry_run=args.dry_run
+            )
+            waveshare_ports = (he_port, she_port)
+            if port_warnings and not args.quiet:
+                for w in port_warnings:
+                    print(f"[Waveshare] {w}")
+        except ValueError as e:
+            parser.error(str(e))
+
     verbose = not args.quiet
     poses_path = Path(args.poses)
 
@@ -160,7 +286,7 @@ def main():
         if single_mode:
             run_single(args, poses_path, verbose)
         else:
-            run_dual(args, poses_path, verbose)
+            run_dual(args, poses_path, verbose, waveshare_ports=waveshare_ports)
     except KeyboardInterrupt:
         print("\n[Choreography] Interrupted by user")
         sys.exit(130)
@@ -251,8 +377,20 @@ def run_single(args, poses_path: Path, verbose: bool):
             run_trajectory(arm, trajectory, dry_run=False, verbose=verbose, startup_duration_s=startup_duration)
 
 
-def run_dual(args, poses_path: Path, verbose: bool):
-    """Run dual arm choreography using merged timeline."""
+def run_dual(
+    args,
+    poses_path: Path,
+    verbose: bool,
+    waveshare_ports: Optional[tuple[str, str]] = None,
+):
+    """Run dual arm choreography using merged timeline.
+
+    Args:
+        args: Parsed command line arguments
+        poses_path: Path to poses JSON file
+        verbose: Whether to print verbose output
+        waveshare_ports: Pre-resolved (he_port, she_port) for waveshare adapter
+    """
     he_path = Path(args.he)
     she_path = Path(args.she)
 
@@ -354,12 +492,20 @@ def run_dual(args, poses_path: Path, verbose: bool):
     else:
         from .. import create_arm
 
-        print(f"[Choreography] Connecting to arms...")
-        print(f"  he:  {args.he_can}")
-        print(f"  she: {args.she_can}")
+        adapter = args.adapter
 
-        with create_arm(adapter="standard", can_port=args.he_can) as he_arm:
-            with create_arm(adapter="standard", can_port=args.she_can) as she_arm:
+        # Use pre-resolved waveshare ports if available
+        if waveshare_ports:
+            he_port, she_port = waveshare_ports
+        else:
+            he_port, she_port = args.he_can, args.she_can
+
+        print(f"[Choreography] Connecting to arms (adapter={adapter})...")
+        print(f"  he:  {he_port}")
+        print(f"  she: {she_port}")
+
+        with create_arm(adapter=adapter, can_port=he_port) as he_arm:
+            with create_arm(adapter=adapter, can_port=she_port) as she_arm:
                 arms = {"he": he_arm, "she": she_arm}
                 run_dual_trajectory(
                     arms,
