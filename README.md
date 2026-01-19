@@ -2,6 +2,29 @@
 
 Piper AgileX 6-DOF robotic arm controller via Raspberry Pi.
 
+## Project Goal
+
+Coordinate a synchronized dance for **2 Piper AgileX robotic arms** to ["City of Stars" from La La Land](https://www.youtube.com/watch?v=cZAw8qxn0ZE).
+
+Built for **[The Robot Rave Hackathon](https://therobotrave.com/)** (January 17-18, 2026, London).
+
+### The Hackathon
+
+| Detail | Info |
+|--------|------|
+| Event | [The Robot Rave](https://lu.ma/yju1ryeu) |
+| Organizers | [Cocoa Ventures](https://cocoa.vc/) + [SOTA](https://www.thesota.org/) |
+| Format | 24-hour hackathon → Robot Dance Competition → Afterparty at Maggie's |
+| Challenge | Make robots dance to music using physical robots, teleoperation, AI motion models, or simulations |
+| Team size | Up to 5 people |
+
+### Our Approach
+
+- **Dual-arm choreography**: Two Piper arms perform synchronized movements as dance partners ("he" and "she")
+- **Timed pose sequences**: Choreography defined in markdown files with millisecond-precision timestamps
+- **Cubic spline interpolation**: Smooth motion between poses with easing functions
+- **Music sync**: Poses timed to arrive at specific beats in "City of Stars"
+
 ## Hardware
 
 ### Components
