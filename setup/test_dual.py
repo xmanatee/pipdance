@@ -40,7 +40,7 @@ def test_dual_waveshare():
     print("[2/4] Connecting to both arms...")
     try:
         he_arm = create_arm(adapter="waveshare", can_port=he_port)
-        he_arm._connect()
+        he_arm.connect()
         print(f"      [OK] he arm connected")
     except Exception as e:
         print(f"      [FAIL] he arm: {e}")
@@ -48,11 +48,11 @@ def test_dual_waveshare():
 
     try:
         she_arm = create_arm(adapter="waveshare", can_port=she_port)
-        she_arm._connect()
+        she_arm.connect()
         print(f"      [OK] she arm connected")
     except Exception as e:
         print(f"      [FAIL] she arm: {e}")
-        he_arm._disconnect()
+        he_arm.disconnect()
         return False
     print()
 
@@ -66,8 +66,8 @@ def test_dual_waveshare():
         she_arm.print_state()
     except Exception as e:
         print(f"      [FAIL] State read: {e}")
-        he_arm._disconnect()
-        she_arm._disconnect()
+        he_arm.disconnect()
+        she_arm.disconnect()
         return False
     print()
 
@@ -98,13 +98,13 @@ def test_dual_waveshare():
         print("      [OK] Movement test complete")
     except Exception as e:
         print(f"      [FAIL] Movement: {e}")
-        he_arm._disconnect()
-        she_arm._disconnect()
+        he_arm.disconnect()
+        she_arm.disconnect()
         return False
 
     # Cleanup
-    he_arm._disconnect()
-    she_arm._disconnect()
+    he_arm.disconnect()
+    she_arm.disconnect()
 
     print()
     print("=" * 50)
